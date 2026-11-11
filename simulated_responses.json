@@ -1,0 +1,246 @@
+{
+  "_readme": "ALL simulated AI output lives in this file. app.js applies simple rules on top (eligibility rules, which lines are included, keyword feedback). Replace each section with a real AI call later. Placeholders like {company} and {role} are filled by the app.",
+
+  "school": { "name": "Chicago Booth", "office": "Booth Career Services" },
+
+  "sample_profile": {
+    "name": "Priya Shah",
+    "email": "priya.shah@chicagobooth.edu",
+    "prefs": {
+      "targetRoles": "Product Management",
+      "industries": "Fintech",
+      "locations": "San Francisco or NYC",
+      "gradDate": "June 2028",
+      "workAuth": "US citizen"
+    }
+  },
+
+  "parsed_resume_facts": [
+    { "id": "edu1", "category": "Education", "text": "Chicago Booth School of Business, MBA, Class of 2028" },
+    { "id": "grad", "category": "Graduation date", "text": "June 2028" },
+    { "id": "gpa", "category": "GPA", "text": "3.6" },
+    { "id": "auth", "category": "Work authorization", "text": "US citizen" },
+    { "id": "exp1", "category": "Role", "text": "Strategy Consultant, Deloitte (3 years)" },
+    { "id": "b1", "category": "Bullet (Deloitte)", "text": "Delivered a market-entry analysis for a regional bank's small-business lending line." },
+    { "id": "b2", "category": "Bullet (Deloitte)", "text": "Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30%." },
+    { "id": "b3", "category": "Bullet (Deloitte)", "text": "Built Excel and Tableau models to track weekly pipeline conversion for 6 client teams." },
+    { "id": "sk1", "category": "Skills", "text": "Excel, Tableau" }
+  ],
+
+  "journal_examples": [
+    { "date": "2026-11-12", "type": "win", "text": "Led Booth case competition team, placed 2nd of 40." },
+    { "date": "2026-10-13", "type": "project", "text": "Built a SQL dashboard for the Fintech Club, used by 300 members." },
+    { "date": "2026-08-17", "type": "goal", "text": "Goal: PM in fintech, SF or NYC, Summer 2027." }
+  ],
+
+  "eligibility_templates": {
+    "gradRange": {
+      "meets": "{value} is within the required range ({from} to {to}).",
+      "not": "{value} is outside the required range ({from} to {to}).",
+      "missing": "No usable graduation date in your confirmed profile."
+    },
+    "workAuth": {
+      "meets": "{value}: authorized to work in the US.",
+      "not": "Your profile says \"{value}\", which may not satisfy this requirement.",
+      "missing": "No work authorization in your confirmed profile."
+    },
+    "minYears": {
+      "meets": "{years} years at {employer} meets the {need}+ year requirement.",
+      "not": "Your profile shows {years} years of experience; {need}+ required.",
+      "missing": "No work experience in your confirmed profile."
+    },
+    "keyword": {
+      "journal": "{keyword} experience found in journal entry {date}: \"{snippet}\"",
+      "resume": "{keyword} found in your confirmed resume ({category}).",
+      "missing": "No {keyword} evidence in your confirmed resume or journal. Add a journal entry, or answer below."
+    },
+    "judgment": {
+      "unsure": "This requirement is subjective, so Landed can't decide it for you."
+    }
+  },
+
+  "roles": [
+    {
+      "id": "acme", "company": "Acme Fintech", "title": "MBA Product Manager Intern", "shortTitle": "PM Intern",
+      "location": "San Francisco", "deadline": "Nov 30, 2026", "source": "Booth career portal",
+      "interviewChance": 0.62, "tags": ["fintech", "pm", "sf"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and June 2028", "from": "2027-12", "to": "2028-06", "fromLabel": "Dec 2027", "toLabel": "Jun 2028" },
+        { "id": "auth", "kind": "workAuth", "text": "Authorized to work in the US" },
+        { "id": "exp", "kind": "minYears", "text": "3+ years of full-time experience", "years": 3 },
+        { "id": "sql", "kind": "keyword", "text": "SQL experience preferred", "keyword": "SQL" },
+        { "id": "ps", "kind": "judgment", "text": "Strong product sense",
+          "postingText": "We're looking for an MBA intern with strong product sense: someone who can spot a customer problem, prioritize, and explain the tradeoffs.",
+          "comparedTo": "Resume, Deloitte bullet 2: \"Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30%.\" Related experience, but \"product sense\" is vague, so Landed is asking you." }
+      ]
+    },
+    {
+      "id": "nexa", "company": "Nexa", "title": "Strategy Intern", "shortTitle": "Strategy",
+      "location": "New York", "deadline": "Dec 5, 2026", "source": "Company job site",
+      "interviewChance": 0.55, "tags": ["strategy", "nyc"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and Aug 2028", "from": "2027-12", "to": "2028-08", "fromLabel": "Dec 2027", "toLabel": "Aug 2028" },
+        { "id": "auth", "kind": "workAuth", "text": "Authorized to work in the US" },
+        { "id": "exp", "kind": "minYears", "text": "2+ years of full-time experience", "years": 2 },
+        { "id": "xl", "kind": "keyword", "text": "Advanced Excel modeling", "keyword": "Excel" }
+      ]
+    },
+    {
+      "id": "ora", "company": "Ora", "title": "VC Fellow", "shortTitle": "VC Fellow",
+      "location": "Remote", "deadline": "Dec 12, 2026", "source": "Booth career portal",
+      "interviewChance": 0.48, "tags": ["vc", "remote"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and Dec 2028", "from": "2027-12", "to": "2028-12", "fromLabel": "Dec 2027", "toLabel": "Dec 2028" },
+        { "id": "auth", "kind": "workAuth", "text": "Authorized to work in the US" },
+        { "id": "inv", "kind": "judgment", "text": "Demonstrated interest in early-stage investing",
+          "postingText": "Fellows should show a demonstrated interest in early-stage investing, through clubs, writing, or prior work.",
+          "comparedTo": "Your profile mentions a fintech goal, but nothing explicitly about early-stage investing. Landed won't guess." }
+      ]
+    },
+    {
+      "id": "brightpath", "company": "Brightpath", "title": "Business Analyst Intern", "shortTitle": "Analyst",
+      "location": "Chicago", "deadline": "Dec 1, 2026", "source": "Company job site",
+      "interviewChance": 0.41, "tags": ["analytics", "chicago"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and Aug 2028", "from": "2027-12", "to": "2028-08", "fromLabel": "Dec 2027", "toLabel": "Aug 2028" },
+        { "id": "auth", "kind": "workAuth", "text": "Authorized to work in the US" },
+        { "id": "tab", "kind": "keyword", "text": "Tableau or similar BI tool", "keyword": "Tableau" }
+      ]
+    },
+    {
+      "id": "kilo", "company": "Kilo", "title": "Business Development Intern", "shortTitle": "BD Intern",
+      "location": "Austin", "deadline": "Nov 28, 2026", "source": "Company job site",
+      "interviewChance": 0.20, "tags": ["bd", "austin"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and Aug 2028", "from": "2027-12", "to": "2028-08", "fromLabel": "Dec 2027", "toLabel": "Aug 2028" },
+        { "id": "exp", "kind": "minYears", "text": "5+ years of full-time experience", "years": 5 }
+      ]
+    }
+  ],
+
+  "new_roles": [
+    {
+      "id": "lumen", "company": "Lumen Pay", "title": "Product Strategy Intern", "shortTitle": "Product Strategy",
+      "location": "Boston", "deadline": "Dec 8, 2026", "source": "Company job site",
+      "interviewChance": 0.50, "tags": ["fintech", "strategy", "boston"], "offerTerms": "Summer 2027",
+      "requirements": [
+        { "id": "grad", "kind": "gradRange", "text": "MBA graduating between Dec 2027 and Aug 2028", "from": "2027-12", "to": "2028-08", "fromLabel": "Dec 2027", "toLabel": "Aug 2028" },
+        { "id": "auth", "kind": "workAuth", "text": "Authorized to work in the US" },
+        { "id": "xl", "kind": "keyword", "text": "Excel or similar analysis tools", "keyword": "Excel" }
+      ]
+    }
+  ],
+
+  "search": {
+    "shortlistDate": "Tuesday, Nov 10",
+    "totalRoles": 312,
+    "scan": [
+      { "label": "PM Intern, Acme", "ok": true },
+      { "label": "Analyst, Brightpath", "ok": true },
+      { "label": "BD Intern, Kilo", "ok": false },
+      { "label": "Ops Fellow, Rivet", "ok": true },
+      { "label": "Strategy, Nexa", "ok": true },
+      { "label": "Sales Intern, Dorm", "ok": false },
+      { "label": "VC Fellow, Ora", "ok": true },
+      { "label": "Finance Intern, Pillar", "ok": false }
+    ],
+    "onDemandNone": "No new roles since the 7:00 am search. We'll keep checking."
+  },
+
+  "tailoring": {
+    "resume": [
+      { "id": "r_edu", "section": "Education", "original": "Chicago Booth School of Business, MBA, Class of 2028. GPA 3.6", "tailored": "Chicago Booth School of Business, MBA, Class of 2028. GPA 3.6",
+        "sources": [ { "fact": "edu1", "label": "Resume: Education" }, { "fact": "gpa", "label": "Resume: GPA" } ] },
+      { "id": "r_b2", "section": "Experience: Deloitte, Strategy Consultant", "original": "Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30%.", "tailored": "Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30% and improving the customer onboarding experience.",
+        "sources": [ { "fact": "b2", "label": "Resume: Deloitte, bullet 2" } ] },
+      { "id": "r_sql", "section": "Projects", "original": null, "tailored": "Built a SQL dashboard for Booth's Fintech Club used by 300 members, turning member data into product decisions.",
+        "sources": [ { "journal": "SQL", "label": "Journal" } ] },
+      { "id": "r_b3", "section": "Experience: Deloitte, Strategy Consultant", "original": "Built Excel and Tableau models to track weekly pipeline conversion for 6 client teams.", "tailored": "Built Excel and Tableau models to track weekly pipeline conversion for 6 client teams.",
+        "sources": [ { "fact": "b3", "label": "Resume: Deloitte, bullet 3" } ] },
+      { "id": "r_b1", "section": "Experience: Deloitte, Strategy Consultant", "original": "Delivered a market-entry analysis for a regional bank's small-business lending line.", "tailored": "Delivered a market-entry analysis for a regional bank's small-business lending product.",
+        "sources": [ { "fact": "b1", "label": "Resume: Deloitte, bullet 1" } ] },
+      { "id": "r_case", "section": "Leadership", "original": null, "tailored": "Led Booth case competition team, placing 2nd of 40.",
+        "sources": [ { "journal": "case competition", "label": "Journal" } ] },
+      { "id": "r_skills", "section": "Skills", "original": "Excel, Tableau", "tailored": "SQL, Excel, Tableau",
+        "sources": [ { "fact": "sk1", "label": "Resume: Skills" }, { "journal": "SQL", "label": "Journal" } ] }
+    ],
+    "cover_letter": {
+      "base": [
+        { "id": "c1", "text": "After three years redesigning loan onboarding for banks at Deloitte, where my team cut approval time by 30%, I want to build fintech products from the inside.",
+          "sources": [ { "fact": "b2", "label": "Resume: Deloitte, bullet 2" }, { "journal": "type:goal", "label": "Journal" } ] },
+        { "id": "c2", "text": "At Booth, I built a SQL dashboard for the Fintech Club that 300 members use, which taught me to turn raw data into decisions a product team can act on.",
+          "sources": [ { "journal": "SQL", "label": "Journal" } ] },
+        { "id": "c3", "text": "I also led our Booth case competition team to a 2nd-place finish out of 40 teams, which strengthened how I prioritize and communicate under pressure.",
+          "sources": [ { "journal": "case competition", "label": "Journal" } ] },
+        { "id": "c4", "text": "The {role} role at {company} is where I can combine that analytical background with hands-on product work, and I would welcome the chance to talk.",
+          "sources": [ { "fact": "edu1", "label": "Resume: Education" } ] },
+        { "id": "c5", "text": "Thank you for your time and consideration.",
+          "sources": [ { "static": true, "label": "Standard closing (no personal fact)", "text": "Closing line, contains no facts about you." } ] }
+      ],
+      "variants": [
+        { "c1": "Three years at Deloitte redesigning loan onboarding for banks, where my team cut approval time by 30%, showed me how much a better customer flow matters, and I now want to build fintech products from the inside.",
+          "c4": "I would be excited to bring that mix of analysis and product thinking to the {role} role at {company}." },
+        { "c1": "Fixing a bank's loan onboarding at Deloitte, and cutting approval time by 30% with a team of four, made me want to build fintech products rather than advise on them.",
+          "c4": "I'd love to contribute to {company} as your {role} and to learn from your product team." }
+      ]
+    }
+  },
+
+  "form": {
+    "fields": [
+      { "id": "first", "label": "First name", "value": "Priya" },
+      { "id": "last", "label": "Last name", "value": "Shah" },
+      { "id": "email", "label": "Email", "value": "priya.shah@chicagobooth.edu" },
+      { "id": "phone", "label": "Phone", "value": "(312) 555-0148" },
+      { "id": "city", "label": "Current city", "value": "Chicago, IL" },
+      { "id": "linkedin", "label": "LinkedIn URL", "value": "linkedin.com/in/priyashah" },
+      { "id": "school", "label": "School", "value": "University of Chicago Booth School of Business" },
+      { "id": "degree", "label": "Degree", "value": "MBA" },
+      { "id": "grad", "label": "Graduation date", "fact": "grad" },
+      { "id": "gpa", "label": "GPA", "fact": "gpa" },
+      { "id": "auth", "label": "Work authorization", "fact": "auth" },
+      { "id": "sponsor", "label": "Will you require visa sponsorship?", "value": "No" },
+      { "id": "employer", "label": "Most recent employer", "value": "Deloitte" },
+      { "id": "title", "label": "Most recent title", "value": "Strategy Consultant" },
+      { "id": "years", "label": "Years of experience", "value": "3" },
+      { "id": "resume", "label": "Resume", "value": "Priya_Shah_Resume_{slug}.pdf" },
+      { "id": "cover", "label": "Cover letter", "value": "Priya_Shah_CoverLetter_{slug}.pdf" },
+      { "id": "loc", "label": "Preferred work location", "value": "{location}" },
+      { "id": "heard", "label": "How did you hear about us?", "flagged": true, "input": "select", "options": ["Booth career portal", "Friend or alumni referral", "Company website", "LinkedIn", "Other"] },
+      { "id": "start", "label": "Earliest start date", "flagged": true, "input": "date" }
+    ]
+  },
+
+  "interview": {
+    "questions": [
+      { "q": "Tell me about a product you'd improve.",
+        "stories": [ { "label": "Loan onboarding redesign", "detail": "Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30%.", "source": "Resume: Deloitte, bullet 2", "fact": "b2" } ] },
+      { "q": "Walk me through a time you used data to make a decision.",
+        "stories": [
+          { "journal": "SQL", "label": "Fintech Club SQL dashboard", "detail": "Built a SQL dashboard used by 300 members." },
+          { "label": "Pipeline conversion models", "detail": "Built Excel and Tableau models to track weekly pipeline conversion for 6 client teams.", "source": "Resume: Deloitte, bullet 3", "fact": "b3" } ] },
+      { "q": "Tell me about a time you led a team under pressure.",
+        "stories": [
+          { "journal": "case competition", "label": "Booth case competition", "detail": "Led the team to 2nd of 40." },
+          { "label": "Loan onboarding redesign", "detail": "Led a 4-person team to redesign a bank's loan onboarding process.", "source": "Resume: Deloitte, bullet 2", "fact": "b2" } ] }
+    ],
+    "practice_feedback": {
+      "tooShort": "That's a little short. Aim for 4 to 6 sentences: one number up front, then the story, then what you'd do next.",
+      "withNumber": "Nice, you used a concrete number. Next step: say it in your first sentence, then walk through the story.",
+      "withoutNumber": "Lead with one number, then the story. Open with a single clear result (e.g., 30% faster approvals) before explaining how you got there."
+    },
+    "reflection_feedback": {
+      "rules": [
+        { "keywords": ["rambl", "metric", "number", "clear"],
+          "feedback": "Lead with one number, then the story. For metrics questions, open with a single clear metric (e.g., 30% faster approvals) before explaining how you got there." },
+        { "keywords": ["nervous", "anxious", "freeze", "blank"],
+          "feedback": "Pause for two seconds before answering, and restate the question in one line. Have one opener ready for your top three stories." }
+      ],
+      "default": "Nice reflection. For next time, pick the one answer you'd improve most and rewrite its first sentence so it states your result up front."
+    }
+  },
+
+  "messages": {
+    "congrats": "Congrats, your search is paused. Your evenings are yours again."
+  }
+}
