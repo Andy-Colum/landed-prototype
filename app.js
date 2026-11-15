@@ -113,6 +113,8 @@ function render() {
 }
 const vDemo = () => `<b>Demo controls</b>
   <button class="btn" data-act="startOvernight" ${S.screen !== 'app' || S.shortlist ? 'disabled' : ''}>⏩ Overnight search → 7:00 am</button>
+  <button class="btn" data-act="checkInbox" data-v="verified" ${S.apps.some(a => vstate(a) === 'pending') ? '' : 'disabled'}>✉️ Confirmation found</button>
+  <button class="btn" data-act="checkInbox" data-v="notfound" ${S.apps.some(a => vstate(a) === 'pending') ? '' : 'disabled'}>✉️ No confirmation</button>
   <button class="btn" data-act="ffTwoWeeks" ${S.twoWeeks || !S.apps.length ? 'disabled' : ''}>⏩ Fast-forward 2 weeks</button>
   <button class="btn" data-act="reset">Reset demo</button>`;
 
@@ -325,6 +327,18 @@ function vSubmitted(role) {
 }
 
 /* ----- Tracker ----- */
+const VERIFY = {
+  verified: ['b-eligible', '✓ Verified', 'Verified: we found the confirmation email from the employer in your inbox, so this application was received.'],
+  pending: ['b-input', '… In progress', 'In progress: email is connected and we are still waiting for the employer\'s confirmation message. This can take a few minutes to a day.'],
+  notfound: ['b-not', '✕ Not verified', 'Not verified: we checked your inbox and found no confirmation. The application may not have gone through (site down, integration error). Check the employer\'s portal or resubmit.'],
+  unverified: ['b-gray', '✕ Not verified', 'Not verified: email is not connected, so we cannot check for a confirmation. Connect email to verify.']
+};
+const vstate = a => a.verification && a.verification !== 'unverified' ? a.verification : (S.emailConnected ? 'pending' : 'unverified');
+function verifyCell(a) {
+  const [c, label, tip] = VERIFY[vstate(a)];
+  return `<span class="badge ${c}">${label}</span> <span class="info" tabindex="0" role="img" aria-label="${esc(tip)}" data-tip="${esc(tip)}">i</span>`;
+}
+
 function vTracker() {
   const due = S.twoWeeks ? S.apps.filter(a => a.status === 'Submitted') : [];
   const prompts = due.map(a => `<div class="notice"><b>Did you hear back from ${esc(a.company)}?</b> It's been two weeks.
@@ -334,7 +348,7 @@ function vTracker() {
   const cls = { Submitted: 'b-blue', Interview: 'b-input', Rejected: 'b-not', 'No reply': 'b-gray', Offer: 'b-eligible' };
   return `<div class="row sp"><h2>Applications</h2>${S.emailConnected ? '<span class="badge b-eligible">Email connected (simulated)</span>' : '<button class="btn" data-act="connectEmail">Connect email</button>'}</div>
   <p class="small mute">${S.emailConnected ? 'Landed will detect replies automatically. You can still mark outcomes yourself.' : 'Optional: connect email so Landed can detect outcomes automatically.'}</p>${prompts}${ask}
-  <div class="card">${S.apps.length ? `<table><tr><th>Company</th><th>Role</th><th>Submitted</th><th>Status</th><th>Update</th></tr>${S.apps.map(a => `<tr><td><b>${esc(a.company)}</b></td><td>${esc(a.title)}</td><td>${fmtLong(a.submittedAt)}</td>
+  <div class="card">${S.apps.length ? `<table><tr><th>Company</th><th>Role</th><th>Submitted</th><th>Verified</th><th>Status</th><th>Update</th></tr>${S.apps.map(a => `<tr><td><b>${esc(a.company)}</b></td><td>${esc(a.title)}</td><td>${fmtLong(a.submittedAt)}</td><td>${verifyCell(a)}</td>
   <td><span class="badge ${cls[a.status]}">${a.status}</span>${a.status === 'Offer' && S.offer?.decision === 'accepted' ? ' <span class="badge b-eligible">Accepted</span>' : ''}</td>
   <td>${a.status === 'Interview' ? `<button class="btn sm" data-act="openPrep">Interview prep</button> ` : ''}${a.status === 'Offer' ? `<button class="btn sm" data-act="openOffer">View offer</button> ` : ''}
   <select data-change="mark" data-id="${a.id}" style="width:auto"><option value="">Mark outcome…</option>${['Interview', 'Offer', 'Rejected', 'No reply'].map(o => `<option>${o}</option>`).join('')}</select></td></tr>`).join('')}</table>` : '<p class="mute">No applications yet. Prepare and approve one from your shortlist.</p>'}</div>`;
@@ -515,12 +529,16 @@ const A = {
     if (D.form.fields.some(f => !String(F.values[f.id] ?? '').trim())) { toast('Please complete the fields marked "Needs your input".'); return upd(); }
     const corr = D.form.fields.filter(f => !F.flagged.includes(f.id) && F.values[f.id] !== F.orig[f.id]).map(f => ({ field: f.id, from: F.orig[f.id], to: F.values[f.id] }));
     log('form_submitted', { role: d.id, corrections: corr, completedFlagged: F.flagged, fieldsPrefilled: F.filled, fieldsTotal: F.total });
-    rs(d.id).status = 'applied'; S.apps.push({ id: 'app_' + d.id, roleId: d.id, company: role.company, title: role.shortTitle, status: 'Submitted', submittedAt: new Date().toISOString() });
+    rs(d.id).status = 'applied'; S.apps.push({ id: 'app_' + d.id, roleId: d.id, company: role.company, title: role.shortTitle, status: 'Submitted', verification: S.emailConnected ? 'pending' : 'unverified', submittedAt: new Date().toISOString() });
     go({ view: { name: 'submitted', roleId: d.id } });
   },
 
   /* tracker */
-  connectEmail() { S.emailConnected = true; log('email_connected'); toast('Email connected (simulated).'); upd(); },
+  checkInbox(d) {
+    S.apps.forEach(a => { if (vstate(a) === 'pending') { a.verification = d.v; log('verification_result', { app: a.id, result: d.v }); } });
+    toast(d.v === 'verified' ? 'Confirmation emails found.' : 'No confirmation found.'); upd();
+  },
+  connectEmail() { S.apps.forEach(a => { if (!a.verification || a.verification === 'unverified') a.verification = 'pending'; }); S.emailConnected = true; log('email_connected'); toast('Email connected (simulated).'); upd(); },
   ffTwoWeeks() { S.twoWeeks = true; go({ tab: 'tracker', view: null }); toast('Two weeks later…'); },
   mark(d) {
     if (!d.v) return; const a = S.apps.find(x => x.id === d.id);

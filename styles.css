@@ -70,3 +70,8 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 6px;
 @keyframes s{to{transform:rotate(360deg)}}
 pre{white-space:pre-wrap;font-size:12px}
 @media(max-width:700px){.grid2,.cols{grid-template-columns:1fr}}
+
+.info{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--mute);color:var(--mute);font:italic 700 11px/1 Georgia,serif;cursor:help;position:relative;vertical-align:middle}
+.info:hover,.info:focus{border-color:var(--navy);color:var(--navy);outline:none}
+.info::after{content:attr(data-tip);display:none;position:absolute;z-index:20;top:22px;left:50%;transform:translateX(-50%);width:240px;padding:8px 10px;border-radius:8px;background:var(--ink);color:#fff;font-family:inherit;font-weight:400;font-size:12px;line-height:1.4;font-style:normal;text-align:left;white-space:normal}
+.info:hover::after,.info:focus::after{display:block}
