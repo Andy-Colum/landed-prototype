@@ -13,8 +13,11 @@ Open http://localhost:5173 (do not open index.html directly; the JSON is loaded 
 2. Verify profile: **Confirm all remaining**, Save verified profile.
 3. Career journal: use the three quick-example buttons, **+ Add entry** for each, then **Confirm as true** on each.
 4. Job recs: **Simulate the overnight search** (or the demo bar button), then open the notification.
+   - Each card shows an interview-chance band (High/Medium/Low), an **Early estimate** tag when Landed has few outcomes for that employer, and **Why this role**.
+   - The 5th card is a **Stretch pick** (lower chance, matches the goal); **Swap for a safer role** replaces it with Rivet.
+   - **Filtered out by Landed** lists close matches that failed a hard requirement; **I do qualify** brings one back.
 5. Open Acme Fintech, answer **I qualify** on "Strong product sense", **Prepare application**.
-6. Review resume/cover letter (accept/edit/revert, Source tags, regenerate), **Save and continue**.
+6. Review resume/cover letter. Unchanged lines are auto-accepted; only changed lines need a decision. Lines with a **New claim** (text no source supports) can't be accepted until you **Remove claim** or confirm it's true. Reverted lines show **Undo**. **Save and continue** unlocks once every change is reviewed.
 7. Fill the two yellow fields, **Approve & Submit**.
 8. Applications tab: demo bar **Fast-forward 2 weeks**, answer the prompt with "Yes, interview", pick a date.
 9. Interview prep: practice an answer, **Simulate: interview finished**, write a reflection, rate it.

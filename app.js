@@ -22,7 +22,7 @@ function upd() { save(); render(); }
 function toast(m) { const d = document.createElement('div'); d.textContent = m; $('#toast').appendChild(d); setTimeout(() => d.remove(), 3200); }
 
 /* ---------- data helpers ---------- */
-const allRoles = () => D.roles.concat(D.new_roles);
+const allRoles = () => D.roles.concat(D.new_roles, D.backup_roles || []);
 const roleById = id => allRoles().find(r => r.id === id);
 const rs = id => (S.rs[id] ||= { status: 'new', labels: {} });
 const fact = id => S.facts.find(f => f.id === id && f.status === 'confirmed');
@@ -94,9 +94,29 @@ function score(role) {
   role.tags.forEach(t => s -= (S.penalties[t] || 0));
   return s;
 }
+const LIVE = ['new', 'approved', 'applied'];
+const listed = () => (S.shortlist || []).map(roleById);
 function ranked() {
-  return (S.shortlist || []).map(roleById).filter(r => ['new', 'approved', 'applied'].includes(rs(r.id).status))
-    .sort((a, b) => ((overall(a) === 'not') - (overall(b) === 'not')) || (score(b) - score(a)));
+  return listed().filter(r => LIVE.includes(rs(r.id).status) && !r.stretch && overall(r) !== 'not').sort((a, b) => score(b) - score(a));
+}
+const stretchRoles = () => listed().filter(r => r.stretch && LIVE.includes(rs(r.id).status) && overall(r) !== 'not');
+/* Filtered out = Landed's own eligibility check failed a hard requirement (not something the student said). */
+const filteredOut = () => listed().filter(r => rs(r.id).status === 'new' && overall(r) === 'not');
+/* Confidence band instead of a falsely precise %; "early estimate" while few outcomes exist for this employer. */
+function band(role) {
+  const s = score(role);
+  return s >= .55 ? ['High chance', 'b-eligible'] : s >= .4 ? ['Medium chance', 'b-input'] : ['Low chance', 'b-gray'];
+}
+const isEarly = role => (role.outcomes ?? 0) < (D.search.earlyThreshold || 20);
+const EARLY_TIP = 'Early estimate: Landed has fewer than 20 known outcomes for roles like this, so this ranking is based mostly on how well your profile fits the posting. It gets more accurate as students report results.';
+function chanceLine(role) {
+  const [l, c] = band(role);
+  return `<div class="row small" style="margin-top:8px"><span class="mute">Interview chance:</span> <span class="badge ${c}">${l}</span>
+  ${isEarly(role) ? `<span class="badge b-early">Early estimate</span> <span class="info" tabindex="0" role="img" aria-label="${esc(EARLY_TIP)}" data-tip="${esc(EARLY_TIP)}">i</span>` : `<span class="mute">based on ${role.outcomes} past outcomes</span>`}</div>`;
+}
+function whyList(role) {
+  if (!role.drivers?.length) return '';
+  return `<div class="why"><div class="cat">Why this role</div><ul>${role.drivers.map(d => `<li>${esc(d)}</li>`).join('')}</ul></div>`;
 }
 
 /* ---------- render ---------- */
@@ -191,28 +211,37 @@ function reqList(role, interactive) {
   }).join('');
 }
 function roleCard(role, rank) {
-  const o = overall(role), st = rs(role.id).status, b = BADGE[o];
-  return `<div class="card"><div class="row sp"><div class="row"><div class="rank">${rank}</div><div><b style="font-size:17px">${esc(role.shortTitle)}, ${esc(role.company)}</b>
+  const o = overall(role), st = rs(role.id).status, b = BADGE[o], stretch = role.stretch;
+  return `<div class="card ${stretch ? 'stretch' : ''}">${stretch ? `<div class="row sp" style="margin-bottom:8px"><span class="badge b-stretch">★ Stretch pick</span><span class="small mute">1 of your 5 daily picks</span></div>
+  <div class="small" style="margin-bottom:10px">${esc(role.stretchNote)}</div>` : ''}<div class="row sp"><div class="row"><div class="rank">${stretch ? '★' : rank}</div><div><b style="font-size:17px">${esc(role.shortTitle)}, ${esc(role.company)}</b>
   <div class="small mute">${esc(role.title)} · ${esc(role.location)} · Deadline ${esc(role.deadline)} · ${esc(role.source)}</div></div></div>
   <span class="badge ${st === 'applied' ? 'b-blue' : b[1]}">${st === 'applied' ? 'Applied' : b[0]}</span></div>
-  <div style="margin-top:6px">${reqList(role, false)}</div>
+  ${chanceLine(role)}${whyList(role)}
+  <details class="small" style="margin-top:6px"><summary class="mute" style="cursor:pointer">Requirements (${role.requirements.length})</summary>${reqList(role, false)}</details>
   ${S.skipping === role.id ? `<div class="unsure-box"><b>Skip this role?</b> <span class="small mute">Reason is optional and helps adjust future rankings.</span>
     <select data-bind="skipReason"><option value="">No reason</option><option>Not interested in this company</option><option>Wrong location</option><option>Wrong type of role</option><option>Timing doesn't work</option></select>
     <div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="confirmSkip" data-id="${role.id}">Confirm skip</button><button class="btn sm" data-act="cancelSkip">Cancel</button></div></div>`
   : `<div class="row" style="margin-top:8px"><button class="btn sm" data-act="openRole" data-id="${role.id}">Open</button>
-    ${st === 'applied' ? '' : `<button class="btn sm pri" data-act="prepare" data-id="${role.id}" ${o === 'not' ? 'disabled' : ''}>Prepare application</button><button class="btn sm" data-act="skip" data-id="${role.id}">Skip</button>`}</div>`}</div>`;
+    ${st === 'applied' ? '' : `<button class="btn sm pri" data-act="prepare" data-id="${role.id}" ${o === 'not' ? 'disabled' : ''}>Prepare application</button>${stretch ? `<button class="btn sm" data-act="swapStretch" data-id="${role.id}">Swap for a safer role</button>` : `<button class="btn sm" data-act="skip" data-id="${role.id}">Skip</button>`}`}</div>`}</div>`;
 }
 function vRecs() {
   if (S.paused) return `<div class="good"><b>Your search is paused.</b> Daily shortlists are off. <button class="btn sm" data-act="resumeSearch">Resume search</button></div>`;
   if (!S.shortlist) return `<div class="card"><h2>Top roles for you</h2><p class="mute">No shortlist yet. Landed checks new postings overnight and has your shortlist ready by 7:00 am.</p>
     <button class="btn pri" data-act="startOvernight">Simulate the overnight search</button></div>`;
-  const list = ranked(), skipped = S.shortlist.map(roleById).filter(r => rs(r.id).status === 'skipped'), removed = S.shortlist.map(roleById).filter(r => rs(r.id).status === 'removed');
-  return `<div class="row sp"><div><h2>Top roles for you</h2><div class="mute small">${esc(D.search.shortlistDate)} · ranked by predicted chance of an interview</div></div>
+  const list = ranked(), st = stretchRoles(), filt = filteredOut(), skipped = listed().filter(r => ['skipped', 'swapped'].includes(rs(r.id).status)), removed = listed().filter(r => rs(r.id).status === 'removed');
+  const WHY5 = 'Landed shows a few roles it thinks are worth a tailored application, not an endless feed. It checked ' + D.search.totalRoles + ' postings overnight. You can always search again or open the roles it filtered out below.';
+  return `<div class="row sp"><div><h2>Top roles for you</h2><div class="mute small">${esc(D.search.shortlistDate)} · ranked by predicted chance of an interview · ${list.length + st.length} picks from ${D.search.totalRoles} postings <span class="info" tabindex="0" role="img" aria-label="${esc(WHY5)}" data-tip="${esc(WHY5)}">i</span></div></div>
   <button class="btn pri" data-act="findNow" ${S.searching ? 'disabled' : ''}>${S.searching ? 'Searching…' : 'Find new roles now'}</button></div><div style="height:12px"></div>
   ${S.searching ? '<div class="card"><div class="spin"></div><p style="text-align:center" class="mute">Searching the career portal and company sites…</p></div>' : ''}
   ${list.map((r, i) => roleCard(r, i + 1)).join('')}
+  ${st.map(r => roleCard(r, 0)).join('')}
+  ${filt.length ? `<details class="card flat" ${S.filtOpen ? 'open' : ''}><summary data-act="toggleFilt" style="cursor:pointer"><b>Filtered out by Landed (${filt.length})</b> <span class="small mute">· close matches that failed a hard requirement. Think Landed got one wrong?</span></summary>
+    ${filt.map(r => { const fails = r.requirements.map(q => [q, evalReq(r, q)]).filter(([, e]) => e.s === 'not');
+      return `<div class="filt"><div style="flex:1"><b>${esc(r.shortTitle)}, ${esc(r.company)}</b> <span class="small mute">· ${esc(r.location)}</span>${fails.map(([q, e]) => `<div class="small"><span style="color:var(--red);font-weight:700">✗</span> ${esc(q.text)} <span class="mute">· ${esc(e.r)}</span></div>`).join('')}</div>
+      <button class="btn sm" data-act="qualifyFiltered" data-id="${r.id}">I do qualify</button></div>`; }).join('')}
+    <div class="small mute" style="margin-top:8px">If you say you qualify, the role comes back to your shortlist and Landed learns from your answer.</div></details>` : ''}
   ${removed.length ? `<div class="card flat"><b>Removed (${removed.length})</b>${removed.map(r => `<div class="small" style="margin-top:6px">${esc(r.shortTitle)}, ${esc(r.company)}: ${esc(rs(r.id).removedReason)} <button class="btn sm ghost" data-act="restore" data-id="${r.id}">Restore</button></div>`).join('')}</div>` : ''}
-  ${skipped.length ? `<div class="card flat"><b>Skipped (${skipped.length})</b>${skipped.map(r => `<div class="small mute" style="margin-top:6px">${esc(r.shortTitle)}, ${esc(r.company)}${rs(r.id).skipReason ? ' · ' + esc(rs(r.id).skipReason) : ''} (similar roles will rank lower)</div>`).join('')}</div>` : ''}`;
+  ${skipped.length ? `<div class="card flat"><b>Skipped (${skipped.length})</b>${skipped.map(r => `<div class="small mute" style="margin-top:6px">${esc(r.shortTitle)}, ${esc(r.company)}${rs(r.id).status === 'swapped' ? ' · stretch pick swapped for a safer role' : (rs(r.id).skipReason ? ' · ' + esc(rs(r.id).skipReason) : '') + ' (similar roles will rank lower)'}</div>`).join('')}</div>` : ''}`;
 }
 function vRole(role) {
   const o = overall(role), b = BADGE[o], st = rs(role.id).status;
@@ -228,7 +257,7 @@ function vOvernight() {
   <div class="panel"><b>Checking <span id="ovn">${done ? D.search.totalRoles : 0}</span> of ${D.search.totalRoles} roles</b><div class="bar" style="margin:8px 0"><div id="ovbar" style="width:${done ? 100 : 0}%"></div></div>
   <div id="ovlist">${done ? D.search.scan.map(s => scanRow(s)).join('') : ''}</div>
   ${done ? '' : '<button class="btn sm" style="margin-top:10px" data-act="skipOvernight">Skip ahead to 7:00 am</button>'}</div>
-  ${done ? `<div class="notif" data-act="openShortlist"><div class="small mute">Landed · 7:00 am</div><b>Your shortlist is ready</b><div class="small">${ranked().length} ranked roles are waiting. Tap to open.</div></div>` : ''}</div>`;
+  ${done ? `<div class="notif" data-act="openShortlist"><div class="small mute">Landed · 7:00 am</div><b>Your shortlist is ready</b><div class="small">${ranked().length} ranked roles and 1 stretch pick are waiting. Tap to open.</div></div>` : ''}</div>`;
 }
 const scanRow = s => `<div class="scan"><span>${esc(s.label)}</span><b style="color:${s.ok ? 'var(--green)' : 'var(--red)'}">${s.ok ? '✓' : '✗'}</b></div>`;
 function runOvernight() {
@@ -243,7 +272,8 @@ function runOvernight() {
 }
 function finishOvernight() {
   S.shortlist = D.roles.map(r => r.id);
-  log('shortlist_generated', { roles: ranked().map((r, i) => ({ id: r.id, rank: i + 1, eligibility: overall(r), requirements: r.requirements.map(q => ({ id: q.id, result: evalReq(r, q).s })) })) });
+  log('shortlist_generated', { roles: ranked().map((r, i) => ({ id: r.id, rank: i + 1, eligibility: overall(r), band: band(r)[0], early: isEarly(r), requirements: r.requirements.map(q => ({ id: q.id, result: evalReq(r, q).s })) })),
+    stretch: stretchRoles().map(r => r.id), filteredOut: filteredOut().map(r => r.id) });
   go({ view: { name: 'overnight', phase: 'done' }, tab: 'recs' });
 }
 
@@ -261,7 +291,8 @@ function buildLetter(role, v) {
 }
 function ensureDocs(role) {
   if (S.docs[role.id]) return;
-  const resume = D.tailoring.resume.map(l => { const sources = resolveSources(l.sources); if (!sources.length) return null; const t = fill(l.tailored, { company: role.company }); return { id: l.id, section: l.section, original: l.original, gen: t, text: t, state: 'pending', sources }; }).filter(Boolean);
+  const resume = D.tailoring.resume.map(l => { const sources = resolveSources(l.sources); if (!sources.length) return null; const t = fill(l.tailored, { company: role.company }); const same = l.original && t === l.original;
+    return { id: l.id, section: l.section, original: l.original, gen: t, text: t, state: same ? 'accepted' : 'pending', auto: !!same, claim: l.newClaim || null, sources }; }).filter(Boolean);
   S.docs[role.id] = { resume, letter: buildLetter(role, 0), variant: 0, tab: 'resume' };
   log('documents_generated', { role: role.id, resumeLines: resume.length });
 }
@@ -277,25 +308,41 @@ function editStats(docs) {
   }));
   return { editedChars: ch, totalChars: base, pct: base ? Math.round(ch / base * 100) : 0 };
 }
+const hasClaim = l => l.claim && !l.claimOk && l.text.includes(l.claim);
+function hlClaim(l) {
+  if (!hasClaim(l)) return hl(l.original, l.text);
+  const i = l.text.indexOf(l.claim);
+  const after = l.text.slice(i + l.claim.length);
+  return hl(l.original, l.text.slice(0, i).trimEnd()) + ` <mark class="claim">${esc(l.claim)}</mark>` + (/^\s/.test(after) ? ' ' : '') + hl(l.original, after.trim());
+}
 function lineHtml(kind, l) {
-  const key = kind + ':' + l.id, ed = S.editing === key, side = kind === 'resume';
-  const txt = ed ? `<textarea data-bind="editText">${esc(S.editText)}</textarea>` : `<div class="txt">${side ? hl(l.original, l.text) : esc(l.text)}</div>`;
-  const stateB = { pending: '', accepted: '<span class="badge b-eligible">Accepted</span>', edited: '<span class="badge b-blue">Edited by you</span>', reverted: '<span class="badge b-gray">Reverted</span>', removed: '<span class="badge b-gray">Removed</span>' }[l.state];
-  const d = `data-doc="${kind}" data-lid="${l.id}"`;
-  return `<div class="line ${l.state === 'removed' ? 'removed' : ''}">${side ? `<div class="cols"><div><div class="cat">Original</div>${l.original ? esc(l.original) : '<span class="mute">(not on your resume)</span>'}</div><div><div class="cat">Tailored${l.text !== l.original ? ' · changed' : ''}</div>${txt}</div></div>` : txt}
+  const key = kind + ':' + l.id, ed = S.editing === key, side = kind === 'resume', d = `data-doc="${kind}" data-lid="${l.id}"`;
+  if (l.auto && l.state === 'accepted' && !ed) return `<div class="line auto"><div class="row sp"><div class="small"><span class="badge b-gray">Unchanged</span> ${esc(l.text)}</div>
+    <button class="btn sm ghost" data-act="lineEdit" ${d}>Edit</button></div></div>`;
+  const claim = hasClaim(l) && !ed;
+  const txt = ed ? `<textarea data-bind="editText">${esc(S.editText)}</textarea>` : `<div class="txt">${side ? hlClaim(l) : esc(l.text)}</div>`;
+  const stateB = { pending: '', accepted: '<span class="badge b-eligible">Accepted</span>', edited: '<span class="badge b-blue">Edited by you</span>', reverted: '<span class="badge b-gray">Reverted to original</span>', removed: '<span class="badge b-gray">Removed</span>' }[l.state]
+    + (l.claimFix ? ` <span class="badge b-gray">${l.claimFix}</span>` : '');
+  const claimBox = claim ? `<div class="claimbox"><b>⚠ New claim: not in your resume or journal.</b> <span class="small">Landed added “${esc(l.claim)}”, but none of the sources below say this. Remove it, or confirm it's true and Landed will save it to your journal.</span>
+    <div class="row" style="margin-top:6px"><button class="btn sm pri" data-act="claimRemove" ${d}>Remove claim</button><button class="btn sm" data-act="claimConfirm" ${d}>It's true, add to journal</button></div></div>` : '';
+  const btns = ed ? `<button class="btn sm pri" data-act="lineSave" ${d}>Save</button><button class="btn sm" data-act="lineCancel">Cancel</button>`
+    : ['reverted', 'removed'].includes(l.state) ? `<button class="btn sm" data-act="lineUndo" ${d}>Undo</button>`
+    : `<button class="btn sm go" data-act="lineAccept" ${d} ${claim ? 'disabled title="Resolve the new claim first"' : ''}>Accept</button><button class="btn sm" data-act="lineEdit" ${d}>Edit</button><button class="btn sm" data-act="lineRevert" ${d}>Revert</button>`;
+  return `<div class="line ${l.state === 'removed' ? 'removed' : ''} ${claim ? 'hasclaim' : ''}">${side ? `<div class="cols"><div><div class="cat">Original</div>${l.original ? esc(l.original) : '<span class="mute">(not on your resume)</span>'}</div><div><div class="cat">Tailored${l.text !== l.original ? ' · changed' : ''}</div>${txt}</div></div>` : txt}
   <div class="row small" style="margin-top:6px">${l.sources.map((s, i) => `<span class="tag" data-act="src" data-key="${key}" data-i="${i}">Source: ${esc(s.label)}</span>`).join('')} ${stateB}</div>
-  ${(S.srcOpen || {})[key] != null ? `<div class="srctext">${esc(l.sources[S.srcOpen[key]].text)}</div>` : ''}
-  <div class="row" style="margin-top:6px">${ed ? `<button class="btn sm pri" data-act="lineSave" ${d}>Save</button><button class="btn sm" data-act="lineCancel">Cancel</button>`
-    : `<button class="btn sm go" data-act="lineAccept" ${d}>Accept</button><button class="btn sm" data-act="lineEdit" ${d}>Edit</button><button class="btn sm" data-act="lineRevert" ${d}>Revert</button>`}</div></div>`;
+  ${(S.srcOpen || {})[key] != null ? `<div class="srctext">${esc(l.sources[S.srcOpen[key]].text)}</div>` : ''}${claimBox}
+  <div class="row" style="margin-top:6px">${btns}</div></div>`;
 }
 function vTailor(role) {
   ensureDocs(role); const d = S.docs[role.id], tab = d.tab;
   let h = '';
   if (tab === 'resume') { let sec = ''; d.resume.forEach(l => { if (l.section !== sec) { h += `<h3 style="margin-top:12px">${esc(l.section)}</h3>`; sec = l.section; } h += lineHtml('resume', l); }); }
   else h = d.letter.map(l => lineHtml('letter', l)).join('') + `<div class="row" style="margin-top:12px"><button class="btn" data-act="regen">↻ Regenerate cover letter</button><span class="small mute">Draft ${d.variant + 1}</span></div>`;
-  return `${back()}<div class="card"><h2>Tailored documents for ${esc(role.title)}, ${esc(role.company)}</h2><div class="small mute">Landed used only your confirmed resume facts and journal entries. Click a Source tag to see the exact source.</div>
+  const all = d.resume.concat(d.letter), pend = all.filter(l => l.state === 'pending').length, claims = all.filter(hasClaim).length, auto = d.resume.filter(l => l.auto).length;
+  const status = pend ? `<span class="badge b-input">${pend} change${pend > 1 ? 's' : ''} to review</span>${claims ? ` <span class="badge b-not">${claims} new claim${claims > 1 ? 's' : ''}</span>` : ''}` : '<span class="badge b-eligible">All changes reviewed</span>';
+  return `${back()}<div class="card"><div class="row sp"><h2>Tailored documents for ${esc(role.title)}, ${esc(role.company)}</h2><div>${status}</div></div><div class="small mute">Landed used only your confirmed resume facts and journal entries. Only lines Landed changed need your review; ${auto} unchanged line${auto === 1 ? ' was' : 's were'} accepted automatically. Click a Source tag to see the exact source.</div>
   <div class="row" style="margin:12px 0"><button class="tab ${tab === 'resume' ? 'on' : ''}" data-act="docTab" data-id="resume">Resume</button><button class="tab ${tab === 'letter' ? 'on' : ''}" data-act="docTab" data-id="letter">Cover letter</button></div>${h}
-  <div class="row" style="margin-top:16px"><button class="btn pri" data-act="saveDocs">Save and continue to application form</button></div></div>`;
+  <div class="row" style="margin-top:16px"><button class="btn pri" data-act="saveDocs" ${pend ? 'disabled' : ''}>Save and continue to application form</button>${pend ? `<span class="small mute">Review the ${pend} remaining change${pend > 1 ? 's' : ''} (resume and cover letter) to continue.</span>` : ''}</div></div>`;
 }
 
 /* ----- Form ----- */
@@ -328,12 +375,14 @@ function vSubmitted(role) {
 
 /* ----- Tracker ----- */
 const VERIFY = {
+  replied: ['b-eligible', '✓ Verified', 'Verified: the employer replied about this role, so the application was received.'],
   verified: ['b-eligible', '✓ Verified', 'Verified: we found the confirmation email from the employer in your inbox, so this application was received.'],
   pending: ['b-input', '… In progress', 'In progress: email is connected and we are still waiting for the employer\'s confirmation message. This can take a few minutes to a day.'],
   notfound: ['b-not', '✕ Not verified', 'Not verified: we checked your inbox and found no confirmation. The application may not have gone through (site down, integration error). Check the employer\'s portal or resubmit.'],
   unverified: ['b-gray', '✕ Not verified', 'Not verified: email is not connected, so we cannot check for a confirmation. Connect email to verify.']
 };
-const vstate = a => a.verification && a.verification !== 'unverified' ? a.verification : (S.emailConnected ? 'pending' : 'unverified');
+/* An employer reply (interview, rejection, offer) proves the application was received. */
+const vstate = a => ['Interview', 'Rejected', 'Offer'].includes(a.status) ? 'replied' : a.verification && a.verification !== 'unverified' ? a.verification : (S.emailConnected ? 'pending' : 'unverified');
 function verifyCell(a) {
   const [c, label, tip] = VERIFY[vstate(a)];
   return `<span class="badge ${c}">${label}</span> <span class="info" tabindex="0" role="img" aria-label="${esc(tip)}" data-tip="${esc(tip)}">i</span>`;
@@ -348,7 +397,7 @@ function vTracker() {
   const cls = { Submitted: 'b-blue', Interview: 'b-input', Rejected: 'b-not', 'No reply': 'b-gray', Offer: 'b-eligible' };
   return `<div class="row sp"><h2>Applications</h2>${S.emailConnected ? '<span class="badge b-eligible">Email connected (simulated)</span>' : '<button class="btn" data-act="connectEmail">Connect email</button>'}</div>
   <p class="small mute">${S.emailConnected ? 'Landed will detect replies automatically. You can still mark outcomes yourself.' : 'Optional: connect email so Landed can detect outcomes automatically.'}</p>${prompts}${ask}
-  <div class="card">${S.apps.length ? `<table><tr><th>Company</th><th>Role</th><th>Submitted</th><th>Verified</th><th>Status</th><th>Update</th></tr>${S.apps.map(a => `<tr><td><b>${esc(a.company)}</b></td><td>${esc(a.title)}</td><td>${fmtLong(a.submittedAt)}</td><td>${verifyCell(a)}</td>
+  <div class="card">${S.apps.length ? `<table><tr><th>Company</th><th>Role</th><th>Submitted</th><th>Verified</th><th>Status</th><th>Update</th></tr>${S.apps.map(a => `<tr><td><b>${esc(a.company)}</b></td><td>${esc(a.title)}${roleById(a.roleId)?.stretch ? ' <span class="badge b-stretch">★ Stretch</span>' : ''}</td><td>${fmtLong(a.submittedAt)}</td><td>${verifyCell(a)}</td>
   <td><span class="badge ${cls[a.status]}">${a.status}</span>${a.status === 'Offer' && S.offer?.decision === 'accepted' ? ' <span class="badge b-eligible">Accepted</span>' : ''}</td>
   <td>${a.status === 'Interview' ? `<button class="btn sm" data-act="openPrep">Interview prep</button> ` : ''}${a.status === 'Offer' ? `<button class="btn sm" data-act="openOffer">View offer</button> ` : ''}
   <select data-change="mark" data-id="${a.id}" style="width:auto"><option value="">Mark outcome…</option>${['Interview', 'Offer', 'Rejected', 'No reply'].map(o => `<option>${o}</option>`).join('')}</select></td></tr>`).join('')}</table>` : '<p class="mute">No applications yet. Prepare and approve one from your shortlist.</p>'}</div>`;
@@ -488,6 +537,17 @@ const A = {
     toast(d.v === 'meets' ? 'Updated. Eligibility recalculated.' : 'Saved.'); upd();
   },
   clearLabel(d) { delete rs(d.role).labels[d.req]; log('eligibility_reset', { role: d.role, req: d.req }); upd(); },
+  toggleFilt() { S.filtOpen = !S.filtOpen; save(); },
+  qualifyFiltered(d) {
+    const role = roleById(d.id), fails = role.requirements.filter(q => autoEval(q).s === 'not');
+    fails.forEach(q => rs(d.id).labels[q.id] = { v: 'meets', kind: 'override' });
+    log('filter_override', { role: d.id, reqs: fails.map(q => q.id), landed_said: 'not' });
+    toast(`${role.company} is back on your shortlist. Landed will learn from your answer.`); upd();
+  },
+  swapStretch(d) {
+    rs(d.id).status = 'swapped'; const add = (D.backup_roles || []).map(r => r.id).filter(id => !S.shortlist.includes(id)); S.shortlist.push(...add);
+    log('exploration_declined', { role: d.id, replacedWith: add }); toast(add.length ? `Swapped for a safer role: ${roleById(add[0]).company}` : 'Stretch pick removed.'); upd();
+  },
   restore(d) { Object.assign(rs(d.id), { status: 'new', labels: {} }); upd(); },
   skip(d) { S.skipping = d.id; S.skipReason = ''; go({ view: null, tab: 'recs' }); },
   cancelSkip() { S.skipping = null; upd(); },
@@ -499,7 +559,7 @@ const A = {
     const role = roleById(d.id), o = overall(role);
     if (o === 'not') return toast("You don't meet a requirement for this role.");
     if (o === 'input') { toast('Please resolve the flagged requirement first.'); return go({ view: { name: 'role', roleId: d.id } }); }
-    rs(d.id).status = rs(d.id).status === 'applied' ? 'applied' : 'approved'; log('approve', { role: d.id, rank: ranked().findIndex(r => r.id === d.id) + 1 });
+    rs(d.id).status = rs(d.id).status === 'applied' ? 'applied' : 'approved'; log('approve', { role: d.id, rank: ranked().findIndex(r => r.id === d.id) + 1, stretch: !!role.stretch, band: band(role)[0] });
     ensureDocs(role); go({ tab: 'recs', view: { name: 'tailor', roleId: d.id } });
   },
 
@@ -511,6 +571,16 @@ const A = {
   lineEdit(d) { S.editing = d.doc + ':' + d.lid; S.editText = A._line(d).text; upd(); },
   lineSave(d) { const l = A._line(d); l.text = S.editText.trim(); l.state = 'edited'; S.editing = null; log('line_edit', { doc: d.doc, line: d.lid, chars: lev(l.gen, l.text) }); upd(); },
   lineCancel() { S.editing = null; upd(); },
+  lineUndo(d) { const l = A._line(d); l.text = l.gen; l.state = 'pending'; log('line_undo_revert', { doc: d.doc, line: d.lid }); upd(); },
+  claimRemove(d) {
+    const l = A._line(d), re = new RegExp('[,;]?\\s*' + l.claim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    l.text = l.text.replace(re, ''); l.state = 'accepted'; l.claimFix = 'Claim removed'; log('claim_removed', { doc: d.doc, line: d.lid, claim: l.claim }); upd();
+  },
+  claimConfirm(d) {
+    const l = A._line(d); l.claimOk = true; l.state = 'accepted'; l.claimFix = 'Claim confirmed by you';
+    S.journal.push({ id: 'j' + Date.now(), date: '2026-11-10', type: 'win', text: l.text, confirmed: true });
+    log('claim_confirmed', { doc: d.doc, line: d.lid, claim: l.claim }); toast('Saved to your journal as a confirmed fact.'); upd();
+  },
   lineRevert(d) {
     const l = A._line(d);
     if (d.doc === 'resume' && !l.original) { l.state = 'removed'; } else { l.text = d.doc === 'resume' ? l.original : l.gen; l.state = 'reverted'; }
@@ -518,7 +588,8 @@ const A = {
   },
   regen() { const dd = S.docs[S.view.roleId]; dd.variant++; dd.letter = buildLetter(roleById(S.view.roleId), dd.variant); log('cover_letter_regenerated', { variant: dd.variant }); toast('New cover letter draft generated.'); upd(); },
   saveDocs() {
-    const id = S.view.roleId, st = editStats(S.docs[id]); log('documents_saved', { role: id, ...st });
+    const id = S.view.roleId; if (S.docs[id].resume.concat(S.docs[id].letter).some(l => l.state === 'pending')) return toast('Review every changed line first.');
+    const st = editStats(S.docs[id]); log('documents_saved', { role: id, ...st });
     toast(`Saved. You edited ${st.pct}% of the generated text.`); ensureForm(roleById(id)); go({ view: { name: 'form', roleId: id } });
   },
 

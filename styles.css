@@ -75,3 +75,16 @@ pre{white-space:pre-wrap;font-size:12px}
 .info:hover,.info:focus{border-color:var(--navy);color:var(--navy);outline:none}
 .info::after{content:attr(data-tip);display:none;position:absolute;z-index:20;top:22px;left:50%;transform:translateX(-50%);width:240px;padding:8px 10px;border-radius:8px;background:var(--ink);color:#fff;font-family:inherit;font-weight:400;font-size:12px;line-height:1.4;font-style:normal;text-align:left;white-space:normal}
 .info:hover::after,.info:focus::after{display:block}
+
+/* Part 4: ranking transparency, stretch pick, filtered-out view, claim flags */
+.b-early{background:#fff;color:var(--navy);border:1.5px dashed var(--navy)}
+.b-stretch{background:#6b4fbb}
+.card.stretch{border-color:#6b4fbb;border-style:dashed;background:#faf8ff}
+.card.stretch .rank{background:#e7e0fb;border-color:#6b4fbb;color:#6b4fbb}
+.why{background:#f6f8fb;border-radius:8px;padding:8px 12px;margin-top:8px}
+.why ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.filt{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+mark.claim{background:#fbd5d1;outline:1.5px solid var(--red)}
+.line.hasclaim{background:#fff7f6}
+.claimbox{background:#fdecea;border:1px solid var(--red);border-radius:8px;padding:8px 10px;margin-top:8px}
+.line.auto{padding:6px 0}
