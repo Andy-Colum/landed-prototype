@@ -155,6 +155,12 @@
      "comparedTo": "Resume, Deloitte bullet 2: \"Led a 4-person team to redesign a bank's loan onboarding process, cutting approval time by 30%.\" Related experience, but \"product sense\" is vague, so Landed is asking you."
     }
    ],
+   "outcomes": 46,
+   "drivers": [
+    "Meets 4 of 5 requirements; 1 needs your answer",
+    "Candidates with consulting backgrounds interviewed here in 2025",
+    "Fits your journal goal: PM in fintech, SF"
+   ],
    "employmentType": "Internship",
    "start": "Summer 2027 (10 to 12 weeks)"
   },
@@ -200,6 +206,12 @@
      "keyword": "Excel"
     }
    ],
+   "outcomes": 31,
+   "drivers": [
+    "Matches all 4 requirements",
+    "Strategy roles at Nexa often interview ex-consultants",
+    "In NYC, one of your target cities"
+   ],
    "employmentType": "Internship",
    "start": "Summer 2027 (10 to 12 weeks)"
   },
@@ -240,6 +252,12 @@
      "comparedTo": "Your profile mentions a fintech goal, but nothing explicitly about early-stage investing. Landed won't guess."
     }
    ],
+   "outcomes": 8,
+   "drivers": [
+    "VC fellowships at Ora are new to Landed, so this estimate is rough",
+    "Remote, and open to MBA Class of 2028",
+    "Needs your answer on one requirement"
+   ],
    "employmentType": "Internship",
    "start": "Summer 2027 (10 to 12 weeks)"
   },
@@ -279,6 +297,12 @@
      "keyword": "Tableau"
     }
    ],
+   "outcomes": 22,
+   "drivers": [
+    "Matches all 3 requirements",
+    "Your Tableau experience is listed as a must-have",
+    "Chicago is not one of your target cities, so it ranks lower"
+   ],
    "employmentType": "Internship",
    "start": "Summer 2027 (10 to 12 weeks)"
   },
@@ -311,6 +335,124 @@
      "kind": "minYears",
      "text": "5+ years of full-time experience",
      "years": 5
+    }
+   ],
+   "outcomes": 12,
+   "drivers": [],
+   "employmentType": "Internship",
+   "start": "Summer 2027 (10 to 12 weeks)"
+  },
+  {
+   "id": "ledgerly",
+   "company": "Ledgerly",
+   "title": "Associate Product Manager Intern",
+   "shortTitle": "APM Intern",
+   "location": "San Francisco",
+   "deadline": "Dec 15, 2026",
+   "source": "Company job site",
+   "interviewChance": 0.18,
+   "outcomes": 14,
+   "stretch": true,
+   "tags": [
+    "fintech",
+    "pm",
+    "sf",
+    "stretch"
+   ],
+   "offerTerms": "Summer 2027",
+   "drivers": [
+    "Exactly your goal: fintech PM in San Francisco",
+    "Most past interviews here went to candidates with engineering backgrounds",
+    "Landed rarely ranks roles like this highly, so your result helps it learn"
+   ],
+   "stretchNote": "Lower predicted chance, but it matches your goal. Landed has little data on how candidates like you do here, so if you apply, your result helps it learn.",
+   "requirements": [
+    {
+     "id": "grad",
+     "kind": "gradRange",
+     "text": "MBA graduating between Dec 2027 and June 2028",
+     "from": "2027-12",
+     "to": "2028-06",
+     "fromLabel": "Dec 2027",
+     "toLabel": "Jun 2028"
+    },
+    {
+     "id": "auth",
+     "kind": "workAuth",
+     "text": "Authorized to work in the US"
+    },
+    {
+     "id": "sql",
+     "kind": "keyword",
+     "text": "SQL or similar data skills",
+     "keyword": "SQL"
+    }
+   ],
+   "employmentType": "Internship",
+   "start": "Summer 2027 (10 to 12 weeks)"
+  },
+  {
+   "id": "pillar",
+   "company": "Pillar",
+   "title": "Finance Intern",
+   "shortTitle": "Finance Intern",
+   "location": "New York",
+   "deadline": "Dec 1, 2026",
+   "source": "Booth career portal",
+   "interviewChance": 0.3,
+   "outcomes": 9,
+   "tags": [
+    "finance",
+    "nyc"
+   ],
+   "offerTerms": "Summer 2027",
+   "drivers": [],
+   "requirements": [
+    {
+     "id": "grad",
+     "kind": "gradRange",
+     "text": "Graduating between Dec 2026 and June 2027",
+     "from": "2026-12",
+     "to": "2027-06",
+     "fromLabel": "Dec 2026",
+     "toLabel": "Jun 2027"
+    },
+    {
+     "id": "auth",
+     "kind": "workAuth",
+     "text": "Authorized to work in the US"
+    }
+   ],
+   "employmentType": "Internship",
+   "start": "Summer 2027 (10 to 12 weeks)"
+  },
+  {
+   "id": "dorm",
+   "company": "Dorm",
+   "title": "Sales Intern",
+   "shortTitle": "Sales Intern",
+   "location": "San Francisco",
+   "deadline": "Nov 25, 2026",
+   "source": "Company job site",
+   "interviewChance": 0.25,
+   "outcomes": 3,
+   "tags": [
+    "sales",
+    "sf"
+   ],
+   "offerTerms": "Summer 2027",
+   "drivers": [],
+   "requirements": [
+    {
+     "id": "exp",
+     "kind": "minYears",
+     "text": "4+ years of B2B sales experience",
+     "years": 4
+    },
+    {
+     "id": "auth",
+     "kind": "workAuth",
+     "text": "Authorized to work in the US"
     }
    ],
    "employmentType": "Internship",
@@ -355,6 +497,12 @@
      "keyword": "Excel"
     }
    ],
+   "outcomes": 5,
+   "drivers": [
+    "Fintech product strategy, close to your goal",
+    "Matches all 3 requirements",
+    "Boston is not one of your target cities"
+   ],
    "employmentType": "Internship",
    "start": "Summer 2027 (10 to 12 weeks)"
   }
@@ -384,6 +532,10 @@
     "ok": true
    },
    {
+    "label": "APM Intern, Ledgerly",
+    "ok": true
+   },
+   {
     "label": "Sales Intern, Dorm",
     "ok": false
    },
@@ -396,7 +548,8 @@
     "ok": false
    }
   ],
-  "onDemandNone": "No new roles since the 7:00 am search. We'll keep checking."
+  "onDemandNone": "No new roles since the 7:00 am search. We'll keep checking.",
+  "earlyThreshold": 20
  },
  "tailoring": {
   "resume": [
@@ -426,7 +579,8 @@
       "fact": "b2",
       "label": "Resume: Deloitte, bullet 2"
      }
-    ]
+    ],
+    "newClaim": "and improving the customer onboarding experience"
    },
    {
     "id": "r_sql",
@@ -438,7 +592,8 @@
       "journal": "SQL",
       "label": "Journal"
      }
-    ]
+    ],
+    "newClaim": "turning member data into product decisions"
    },
    {
     "id": "r_b3",
@@ -754,6 +909,53 @@
  "messages": {
   "congrats": "Congrats, your search is paused. Your evenings are yours again."
  },
+ "backup_roles": [
+  {
+   "id": "rivet",
+   "company": "Rivet",
+   "title": "Operations Fellow",
+   "shortTitle": "Ops Fellow",
+   "location": "Chicago",
+   "deadline": "Dec 10, 2026",
+   "source": "Booth career portal",
+   "interviewChance": 0.44,
+   "outcomes": 27,
+   "tags": [
+    "ops",
+    "chicago"
+   ],
+   "offerTerms": "Summer 2027",
+   "drivers": [
+    "Matches all 3 requirements",
+    "Rivet has interviewed many candidates with your background",
+    "Chicago is not one of your target cities"
+   ],
+   "requirements": [
+    {
+     "id": "grad",
+     "kind": "gradRange",
+     "text": "MBA graduating between Dec 2027 and Aug 2028",
+     "from": "2027-12",
+     "to": "2028-08",
+     "fromLabel": "Dec 2027",
+     "toLabel": "Aug 2028"
+    },
+    {
+     "id": "auth",
+     "kind": "workAuth",
+     "text": "Authorized to work in the US"
+    },
+    {
+     "id": "xl",
+     "kind": "keyword",
+     "text": "Excel modeling",
+     "keyword": "Excel"
+    }
+   ],
+   "employmentType": "Internship",
+   "start": "Summer 2027 (10 to 12 weeks)"
+  }
+ ],
  "fulltime_roles": [
   {
    "id": "ledgerly",

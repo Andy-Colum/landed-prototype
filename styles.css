@@ -77,3 +77,17 @@ pre{white-space:pre-wrap;font-size:12px}
 .info:hover::after,.info:focus::after{display:block}
 .ai-box{background:#eef3ff;border:1px solid #b9c8f5;border-radius:8px;padding:8px 10px;margin:8px 0}
 .ai-box ul{margin:2px 0 0 18px;padding:0}
+
+
+/* Part 4: ranking transparency, stretch pick, filtered-out view, claim flags */
+.b-early{background:#fff;color:var(--navy);border:1.5px dashed var(--navy)}
+.b-stretch{background:#6b4fbb}
+.card.stretch{border-color:#6b4fbb;border-style:dashed;background:#faf8ff}
+.card.stretch .rank{background:#e7e0fb;border-color:#6b4fbb;color:#6b4fbb}
+.why{background:#f6f8fb;border-radius:8px;padding:8px 12px;margin-top:8px}
+.why ul{margin:4px 0 0;padding-left:18px;font-size:13px}
+.filt{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+mark.claim{background:#fbd5d1;outline:1.5px solid var(--red)}
+.line.hasclaim{background:#fff7f6}
+.claimbox{background:#fdecea;border:1px solid var(--red);border-radius:8px;padding:8px 10px;margin-top:8px}
+.line.auto{padding:6px 0}
