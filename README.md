@@ -174,3 +174,6 @@ Only the job search is an agent (it chooses its own searches and pages to read),
 | `simulated_responses.json` | Canned answers for all simulated steps, plus the fixed sample roles (`roles` = internships, `fulltime_roles` = full-time) |
 
 State persists in the browser. Use **Reset demo** in the bottom bar to start over. Settings shows the in-browser activity log.
+
+## Deploying on Vercel
+The `api/` folder wraps the same backend code as Vercel serverless functions (`vercel.json` sets a 300 s limit for the web search). In Vercel: Project Settings > Environment Variables, add `ANTHROPIC_API_KEY` (all environments), then redeploy. Logs go to Vercel's function logs instead of `logs/`. Vercel limits request bodies to about 4.5 MB, so very large PDFs will fail.

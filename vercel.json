@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 300,
+      "includeFiles": "{config.json,simulated_responses.json,backend/sample_resume.txt}"
+    }
+  }
+}
