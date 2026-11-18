@@ -41,10 +41,17 @@ async function postAI(url, body) {
   return j;
 }
 const userName = () => S.profile.name || D.sample_profile.name;
+/* Job matching only sees what the student confirmed (edits included). Deleted facts are never sent. */
+const confirmedFacts = () => S.facts.filter(f => f.status === 'confirmed').map(f => ({ id: f.id, category: f.category, text: f.text }));
 async function fetchMatch() {
-  const p = S.profile, preferences = { targetRoles: p.targetRoles, industries: p.industries, locations: p.locations, gradDate: p.gradDate, workAuth: p.workAuth };
-  return postAI('/api/match-jobs', { resume: getResume(), preferences });
+  const p = S.profile, facts = confirmedFacts(), have = facts.length > 0;
+  const preferences = { targetRoles: p.targetRoles, industries: p.industries, locations: p.locations,
+    gradDate: have ? (fact('grad')?.text || '') : p.gradDate, workAuth: have ? (fact('auth')?.text || '') : p.workAuth };
+  log('match_inputs', { fact_ids: facts.map(f => f.id), edited_ids: S.facts.filter(f => f.status === 'confirmed' && f.edited).map(f => f.id), deleted_ids: S.facts.filter(f => f.status === 'deleted').map(f => f.id) });
+  return postAI('/api/match-jobs', { resume: getResume(), facts, preferences });
 }
+/* Resume says one graduation date, the form another: ask, never guess. */
+const gradDiffers = (a, b) => { const x = parseYM(a), y = parseYM(b); return x && y ? x !== y : String(a).trim().toLowerCase() !== String(b).trim().toLowerCase(); };
 function aiEval(role, req) {
   const q = S.ai?.roles?.[role.id]?.requirements.find(x => x.requirement_id === req.id);
   return q ? { s: { match: 'meets', gap: 'not', unsure: 'unsure' }[q.status] || 'unsure', r: q.evidence, ai: true } : null;
@@ -218,11 +225,12 @@ function vVerify() {
       : f.status === 'deleted' ? `<button class="btn sm" data-act="undoFact" data-id="${f.id}">Undo</button>`
       : `<button class="btn sm go" data-act="confirmFact" data-id="${f.id}">Confirm</button><button class="btn sm" data-act="editFact" data-id="${f.id}">Edit</button><button class="btn sm" data-act="deleteFact" data-id="${f.id}">Delete</button>`}</div></div>`;
   });
-  const pending = S.facts.filter(f => f.status === 'pending').length;
+  const pending = S.facts.filter(f => f.status === 'pending').length + (S.gradConflict ? 1 : 0);
+  const gc = S.gradConflict ? `<div class="unsure-box"><b>Your resume and your form disagree on your graduation date.</b><div class="small" style="margin:4px 0 8px">Resume: <b>${esc(S.gradConflict.resume)}</b> · Form: <b>${esc(S.gradConflict.form)}</b>. Which is right? Landed won't guess.</div><div class="row"><button class="btn sm pri" data-act="resolveGrad" data-v="resume">${esc(S.gradConflict.resume)} (resume)</button><button class="btn sm pri" data-act="resolveGrad" data-v="form">${esc(S.gradConflict.form)} (form)</button></div></div>` : '';
   return `<div class="wrap"><div class="logo">Landed<i></i></div><div class="card" style="margin-top:14px"><h2>Verify your profile</h2>
   ${S.parseError ? `<div class="notice"><b>The AI call failed, so these are the simulated example facts, not your resume.</b> <span class="small">${esc(S.parseError)}</span></div>` : ''}
   ${S.parse ? `<div class="ai-box small"><span class="badge b-blue">AI read your resume</span> ${esc(S.parse.model)} pulled these facts from ${esc(S.profile.resumeName)}. Check each one: AI can misread.</div>` : ''}
-  <div class="notice">Landed only uses facts you confirm. Confirm, edit, or delete each one below.</div>${h}
+  <div class="notice">Landed only uses facts you confirm. Confirm, edit, or delete each one below.</div>${gc}${h}
   <div class="row" style="margin-top:16px"><button class="btn pri" data-act="finishVerify" ${pending ? 'disabled' : ''}>Save verified profile</button>
   <button class="btn ghost" data-act="confirmAll">Confirm all remaining</button><span class="mute small">${pending ? pending + ' fact(s) still pending' : 'All facts reviewed'}</span></div></div></div>`;
 }
@@ -563,17 +571,23 @@ const A = {
         S.parse = { request_id: m.request_id, model: m.model }; S.parseError = null;
         S.facts = m.facts.map(f => ({ ...f, status: 'pending' }));
         if (m.candidate_name) S.profile.name = m.candidate_name;
+        const g = S.facts.find(f => f.id === 'grad'); S.gradConflict = g && g.source === 'resume' && gradDiffers(g.text, p.gradDate) ? { resume: g.text, form: p.gradDate } : null;
+        if (S.gradConflict) log('grad_conflict_shown', S.gradConflict);
         go({ screen: 'verify' });
-      } else setTimeout(() => { S.parse = null; S.parseError = null; S.facts = simulated(); go({ screen: 'verify' }); }, Math.max(0, 1600 - (Date.now() - started)));
-    }).catch(err => { S.parse = null; S.parseError = err.message; S.facts = simulated(); toast('AI call failed. Showing simulated facts.'); go({ screen: 'verify' }); });
+      } else setTimeout(() => { S.parse = null; S.parseError = null; S.gradConflict = null; S.facts = simulated(); go({ screen: 'verify' }); }, Math.max(0, 1600 - (Date.now() - started)));
+    }).catch(err => { S.parse = null; S.parseError = err.message; S.gradConflict = null; S.facts = simulated(); toast('AI call failed. Showing simulated facts.'); go({ screen: 'verify' }); });
   },
-  confirmFact(d) { const f = S.facts.find(x => x.id === d.id); f.status = 'confirmed'; log('fact_confirmed', { id: d.id, text: f.text, ai_confidence: f.confidence ?? null }); upd(); },
+  confirmFact(d) { const f = S.facts.find(x => x.id === d.id); if (f.id === 'grad' && S.gradConflict) return toast('Choose which graduation date is right first.'); f.status = 'confirmed'; log('fact_confirmed', { id: d.id, text: f.text, ai_confidence: f.confidence ?? null }); upd(); },
   editFact(d) { S.editFact = d.id; S.editText = S.facts.find(x => x.id === d.id).text; upd(); },
-  saveFact(d) { const f = S.facts.find(x => x.id === d.id); if (!S.editText.trim()) return toast('A fact cannot be empty.'); log('fact_edited', { id: d.id, from: f.text, to: S.editText }); f.text = S.editText.trim(); f.status = 'confirmed'; S.editFact = null; upd(); },
+  saveFact(d) { const f = S.facts.find(x => x.id === d.id); if (!S.editText.trim()) return toast('A fact cannot be empty.'); log('fact_edited', { id: d.id, from: f.text, to: S.editText }); f.text = S.editText.trim(); f.status = 'confirmed'; f.edited = true; if (f.id === 'grad') { S.profile.gradDate = f.text; S.gradConflict = null; } S.editFact = null; upd(); },
   cancelFact() { S.editFact = null; upd(); },
   deleteFact(d) { S.facts.find(x => x.id === d.id).status = 'deleted'; log('fact_deleted', { id: d.id, text: S.facts.find(x => x.id === d.id).text }); upd(); },
   undoFact(d) { S.facts.find(x => x.id === d.id).status = 'pending'; log('fact_undo', { id: d.id }); upd(); },
-  confirmAll() { S.facts.forEach(f => { if (f.status === 'pending') f.status = 'confirmed'; }); log('facts_confirmed_all', { ids: S.facts.filter(f => f.status === 'confirmed').map(f => f.id) }); upd(); },
+  resolveGrad(d) {
+    const g = S.facts.find(f => f.id === 'grad'), text = S.gradConflict[d.v]; g.text = text; g.status = 'confirmed'; g.edited = d.v === 'form'; S.profile.gradDate = text;
+    log('grad_conflict_resolved', { chose: d.v, resume: S.gradConflict.resume, form: S.gradConflict.form }); S.gradConflict = null; upd();
+  },
+  confirmAll() { S.facts.forEach(f => { if (f.status === 'pending' && !(f.id === 'grad' && S.gradConflict)) f.status = 'confirmed'; }); log('facts_confirmed_all', { ids: S.facts.filter(f => f.status === 'confirmed').map(f => f.id) }); upd(); },
   finishVerify() { log('profile_verified', { facts: S.facts.filter(f => f.status === 'confirmed').length }); go({ screen: 'app', tab: 'journal', view: null, journalPrompt: true }); },
 
   tab(d) { go({ tab: d.id, view: null }); },

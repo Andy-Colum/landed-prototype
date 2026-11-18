@@ -255,6 +255,23 @@ function resumeInput(resume) {
   return { block: { type: "text", text: `<resume>\n${text}\n</resume>` }, forLog: text };
 }
 
+// The candidate's confirmed facts (their edits included; deleted and unconfirmed facts are never sent).
+// When facts are given, the original resume is NOT sent, so nothing the candidate removed can leak back in.
+function factsInput(facts) {
+  const clean = facts
+    .filter((f) => f && typeof f.text === "string" && f.text.trim())
+    .slice(0, 200)
+    .map((f) => ({ id: String(f.id ?? "").slice(0, 20), category: String(f.category ?? "").slice(0, 60), text: f.text.trim().slice(0, 500) }));
+  const lines = clean.map((f) => `- [${f.category}] ${f.text}`).join("\n");
+  return {
+    block: { type: "text", text: `<confirmed_facts>
+These are the only facts the candidate has confirmed about themselves. Treat them as the resume. Nothing else is known.
+${lines}
+</confirmed_facts>` },
+    forLog: { confirmed_facts: clean },
+  };
+}
+
 // Runs one AI step (or skips it in simulated mode) and writes one log entry with input, output or error.
 async function runStep({ step, label, system, content, schema, tools, logInput }) {
   const cfg = loadConfig()[step];
@@ -284,9 +301,9 @@ async function runStep({ step, label, system, content, schema, tools, logInput }
   }
 }
 
-export async function matchJobs({ resume, preferences }) {
+export async function matchJobs({ resume, facts, preferences }) {
   const cfg = loadConfig().job_matching;
-  const r = resumeInput(resume);
+  const r = Array.isArray(facts) && facts.length ? factsInput(facts) : resumeInput(resume);
   const today = new Date().toISOString().slice(0, 10);
   const candidate = `<today>${today}</today>\n\n<candidate_preferences>\n${JSON.stringify(preferences, null, 2)}\n</candidate_preferences>`;
 
