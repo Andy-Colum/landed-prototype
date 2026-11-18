@@ -16,13 +16,62 @@ const fresh = () => ({
   practice: null, practiceText: '', practiceFb: {}, reflectText: '', rating: 0
 });
 function save() { localStorage.setItem(KEY, JSON.stringify(S)); }
-function log(type, data = {}) { S.log.push({ t: new Date().toISOString(), type, ...data }); }
+/* Feedback clicks (accept / reject / correct) are also sent to the backend log (logs/ai_log.jsonl), linked to the AI request. */
+const PARSE_FEEDBACK = ['fact_confirmed', 'fact_edited', 'fact_deleted', 'fact_undo', 'facts_confirmed_all', 'profile_verified'];
+const FEEDBACK_TYPES = [...PARSE_FEEDBACK, 'eligibility_label', 'eligibility_override', 'eligibility_reset', 'skip', 'approve', 'role_restored', 'relevance_override', 'line_accept', 'line_edit', 'line_revert', 'feedback_rating', 'shortlist_generated'];
+function log(type, data = {}) {
+  const e = { t: new Date().toISOString(), type, ...data };
+  S.log.push(e);
+  const src = PARSE_FEEDBACK.includes(type) ? S.parse : S.ai;
+  if (FEEDBACK_TYPES.includes(type)) fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event: type, ai_step: PARSE_FEEDBACK.includes(type) ? 'resume_parsing' : 'job_matching', ai_request_id: src?.request_id || null, ai_model: src?.model || null, ...data }) }).catch(() => {});
+}
+
+/* ---------- real AI: job matching (see backend/ai.js) ---------- */
+const RESUME_KEY = 'landed_resume_pdf';
+function getResume() {
+  try { const r = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); if (r) return r; } catch {}
+  return window._resume || { kind: 'sample' };
+}
+function setResume(r) { window._resume = r; try { r ? localStorage.setItem(RESUME_KEY, JSON.stringify(r)) : localStorage.removeItem(RESUME_KEY); } catch {} }
+async function postAI(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+  return j;
+}
+const userName = () => S.profile.name || D.sample_profile.name;
+async function fetchMatch() {
+  const p = S.profile, preferences = { targetRoles: p.targetRoles, industries: p.industries, locations: p.locations, gradDate: p.gradDate, workAuth: p.workAuth };
+  return postAI('/api/match-jobs', { resume: getResume(), preferences });
+}
+function aiEval(role, req) {
+  const q = S.ai?.roles?.[role.id]?.requirements.find(x => x.requirement_id === req.id);
+  return q ? { s: { match: 'meets', gap: 'not', unsure: 'unsure' }[q.status] || 'unsure', r: q.evidence, ai: true } : null;
+}
+const landedEval = (role, req) => aiEval(role, req) || autoEval(req);
+/* A role the AI found on the web becomes a role object the rest of the prototype can use. */
+function webRole(a) {
+  let host = ''; try { host = new URL(a.url).hostname.replace(/^www\./, ''); } catch {}
+  return { id: a.role_id, company: a.company, title: a.title, shortTitle: a.title, location: a.location, deadline: a.deadline || 'Not stated',
+    source: host || 'Web search', url: a.url, interviewChance: +a.interview_chance || 0, tags: [], offerTerms: a.start || a.employment_type,
+    employmentType: a.employment_type, start: a.start, requirements: a.requirements.map(q => ({ id: q.requirement_id, kind: 'judgment', text: q.text })) };
+}
+const postingLink = role => role.url ? ` · <a href="${esc(role.url)}" target="_blank" rel="noopener">View posting ↗</a>` : '';
+const pct = x => Math.round((+x || 0) * 100) + '%';
+function aiBox(role) {
+  const a = S.ai?.roles?.[role.id]; if (!a) return '';
+  const li = xs => xs.map(x => `<li>${esc(x)}</li>`).join('');
+  return `<div class="ai-box small"><div><span class="badge b-blue">AI match</span> Interview chance <b>${pct(a.interview_chance)}</b> · Confidence <b>${pct(a.confidence)}</b></div>
+  <div style="margin-top:4px">${esc(a.why)}</div>
+  <div class="grid2" style="margin-top:4px">${a.strengths.length ? `<div><b>Where you match</b><ul>${li(a.strengths)}</ul></div>` : ''}${a.gaps.length ? `<div><b>Gaps</b><ul>${li(a.gaps)}</ul></div>` : ''}</div></div>`;
+}
 function go(patch) { Object.assign(S, patch); save(); render(); window.scrollTo(0, 0); }
 function upd() { save(); render(); }
 function toast(m) { const d = document.createElement('div'); d.textContent = m; $('#toast').appendChild(d); setTimeout(() => d.remove(), 3200); }
 
 /* ---------- data helpers ---------- */
-const allRoles = () => D.roles.concat(D.new_roles);
+const allRoles = () => D.roles.concat(D.new_roles, D.fulltime_roles || [], S?.webRoles || []);
 const roleById = id => allRoles().find(r => r.id === id);
 const rs = id => (S.rs[id] ||= { status: 'new', labels: {} });
 const fact = id => S.facts.find(f => f.id === id && f.status === 'confirmed');
@@ -73,7 +122,7 @@ function autoEval(req) {
   }
 }
 function evalReq(role, req) {
-  const a = autoEval(req), L = rs(role.id).labels[req.id];
+  const a = landedEval(role, req), L = rs(role.id).labels[req.id];
   if (!L) return { ...a, user: false, auto: a };
   if (L.v === 'meets') return { s: 'meets', r: 'You confirmed that you meet this requirement.', user: true, auto: a };
   if (L.v === 'not') return { s: 'not', r: "You said you don't meet this requirement.", user: true, auto: a };
@@ -85,8 +134,9 @@ function overall(role) {
 }
 const BADGE = { eligible: ['Eligible', 'b-eligible'], input: ['Needs your input', 'b-input'], not: ['Not eligible', 'b-not'] };
 function score(role) {
-  let s = role.interviewChance; const g = jFind('type:goal');
-  if (g) {
+  const ai = S.ai?.roles?.[role.id];
+  let s = ai ? +ai.interview_chance : role.interviewChance; const g = jFind('type:goal');
+  if (g && !ai) {
     if (/fintech/i.test(g.text) && role.tags.includes('fintech')) s += .05;
     if (/\bSF\b|San Francisco/i.test(g.text) && role.tags.includes('sf')) s += .03;
     if (/NYC|New York/i.test(g.text) && role.tags.includes('nyc')) s += .03;
@@ -105,7 +155,7 @@ function render() {
   const el = $('#app');
   if (S.screen === 'welcome') el.innerHTML = vWelcome();
   else if (S.screen === 'onboarding') el.innerHTML = vOnboarding();
-  else if (S.screen === 'parsing') el.innerHTML = `<div class="center card"><h2>Reading your resume…</h2><p class="mute">Parsing ${esc(S.profile.resumeName)} into structured facts.</p><div class="spin"></div></div>`;
+  else if (S.screen === 'parsing') el.innerHTML = `<div class="center card"><h2>Reading your resume…</h2><p class="mute">Parsing ${esc(S.profile.resumeName)} into structured facts. With the real AI this takes 10 to 30 seconds.</p><div class="spin"></div></div>`;
   else if (S.screen === 'verify') el.innerHTML = vVerify();
   else el.innerHTML = vApp();
   $('#demobar').innerHTML = vDemo();
@@ -128,7 +178,7 @@ function vWelcome() {
 function vOnboarding() {
   const p = S.profile, inp = (k, label, ph) => `<div><label>${label}</label><input type="text" data-bind="profile.${k}" value="${esc(p[k])}" placeholder="${ph}"></div>`;
   return `<div class="wrap"><div class="logo">Landed<i></i></div><div class="card" style="margin-top:14px"><h2>Set up your profile</h2>
-  <p class="mute small">Signed in as ${esc(D.sample_profile.name)} · ${esc(D.school.office)}</p>
+  <p class="mute small">Signed in as ${esc(userName())} · ${esc(D.school.office)}</p>
   <label>Resume (PDF)</label>
   <div class="card flat" style="border-style:dashed;text-align:center">${p.resumeName ? `📄 <b>${esc(p.resumeName)}</b>` : 'Drop your resume here, or choose a file'}<br>
   <input type="file" id="resume" accept="application/pdf,.pdf" style="margin-top:8px"></div>
@@ -141,7 +191,8 @@ function vVerify() {
   S.facts.forEach(f => {
     if (f.category !== last) { h += `<div class="cat" style="margin-top:14px">${esc(f.category.replace(/ \(.*\)/, ''))}</div>`; last = f.category; }
     const ed = S.editFact === f.id;
-    h += `<div class="fact ${f.status === 'deleted' ? 'del' : ''}"><div style="flex:1;min-width:240px">${ed ? `<input type="text" data-bind="editText" value="${esc(S.editText)}">` : esc(f.text)}
+    const meta = f.confidence != null ? ` <span class="small mute">${f.source === 'profile form' ? 'from your profile form · ' : ''}AI confidence ${pct(f.confidence)}</span>` : '';
+    h += `<div class="fact ${f.status === 'deleted' ? 'del' : ''}"><div style="flex:1;min-width:240px">${ed ? `<input type="text" data-bind="editText" value="${esc(S.editText)}">` : esc(f.text) + meta}
     ${f.status === 'confirmed' ? ' <span class="badge b-eligible">Confirmed</span>' : f.status === 'deleted' ? ' <span class="badge b-gray">Deleted</span>' : ' <span class="badge b-input">Pending</span>'}</div>
     <div class="row">${ed ? `<button class="btn sm pri" data-act="saveFact" data-id="${f.id}">Save</button><button class="btn sm" data-act="cancelFact">Cancel</button>`
       : f.status === 'deleted' ? `<button class="btn sm" data-act="undoFact" data-id="${f.id}">Undo</button>`
@@ -149,6 +200,8 @@ function vVerify() {
   });
   const pending = S.facts.filter(f => f.status === 'pending').length;
   return `<div class="wrap"><div class="logo">Landed<i></i></div><div class="card" style="margin-top:14px"><h2>Verify your profile</h2>
+  ${S.parseError ? `<div class="notice"><b>The AI call failed, so these are the simulated example facts, not your resume.</b> <span class="small">${esc(S.parseError)}</span></div>` : ''}
+  ${S.parse ? `<div class="ai-box small"><span class="badge b-blue">AI read your resume</span> ${esc(S.parse.model)} pulled these facts from ${esc(S.profile.resumeName)}. Check each one: AI can misread.</div>` : ''}
   <div class="notice">Landed only uses facts you confirm. Confirm, edit, or delete each one below.</div>${h}
   <div class="row" style="margin-top:16px"><button class="btn pri" data-act="finishVerify" ${pending ? 'disabled' : ''}>Save verified profile</button>
   <button class="btn ghost" data-act="confirmAll">Confirm all remaining</button><span class="mute small">${pending ? pending + ' fact(s) still pending' : 'All facts reviewed'}</span></div></div></div>`;
@@ -166,7 +219,7 @@ function vApp() {
   else if (v && v.name === 'prep') body = vPrep();
   else if (v && v.name === 'offer') body = vOffer();
   else body = { recs: vRecs, tracker: vTracker, journal: vJournal, settings: vSettings }[S.tab]();
-  return `<div class="top"><div class="logo" style="font-size:24px">Landed<i></i></div><small>${esc(D.school.office)} · ${esc(D.sample_profile.name)}</small></div>
+  return `<div class="top"><div class="logo" style="font-size:24px">Landed<i></i></div><small>${esc(D.school.office)} · ${esc(userName())}</small></div>
   <div class="tabs">${tabs.map(([k, l]) => `<button class="tab ${S.tab === k && !S.view ? 'on' : ''}" data-act="tab" data-id="${k}">${l}</button>`).join('')}</div>
   <div class="wrap">${body}</div>`;
 }
@@ -180,7 +233,7 @@ function reqList(role, interactive) {
     if (interactive) {
       const btn = (v, l) => `<button class="btn sm" data-act="label" data-role="${role.id}" data-req="${q.id}" data-v="${v}" data-kind="label">${l}</button>`;
       if (e.s === 'unsure') extra = `<div class="unsure-box">${q.postingText ? `<div class="small mute">Exact posting text</div><div class="quote">${esc(q.postingText)}</div>` : ''}
-        <div class="small"><b>What Landed compared it to:</b> ${esc(q.comparedTo || e.r)}</div><div style="margin:8px 0 6px"><b>Do you meet this requirement?</b></div>
+        <div class="small"><b>What Landed compared it to:</b> ${esc(e.auto?.ai ? e.auto.r : (q.comparedTo || e.r))}</div><div style="margin:8px 0 6px"><b>Do you meet this requirement?</b></div>
         <div class="row">${btn('meets', 'I qualify')}${btn('not', "I don't qualify")}${btn('notsure', 'Not sure')}</div></div>`;
       else extra = `<details class="small"><summary class="mute" style="cursor:pointer">${e.user ? 'You labeled this' : 'Disagree?'} Override</summary><div class="row" style="margin-top:4px">
         <button class="btn sm" data-act="label" data-role="${role.id}" data-req="${q.id}" data-v="meets" data-kind="override">I do meet this</button>
@@ -193,9 +246,9 @@ function reqList(role, interactive) {
 function roleCard(role, rank) {
   const o = overall(role), st = rs(role.id).status, b = BADGE[o];
   return `<div class="card"><div class="row sp"><div class="row"><div class="rank">${rank}</div><div><b style="font-size:17px">${esc(role.shortTitle)}, ${esc(role.company)}</b>
-  <div class="small mute">${esc(role.title)} · ${esc(role.location)} · Deadline ${esc(role.deadline)} · ${esc(role.source)}</div></div></div>
+  <div class="small mute">${esc(role.title)} · ${esc(role.employmentType || '')}${role.start ? ', starts ' + esc(role.start) : ''} · ${esc(role.location)} · Deadline ${esc(role.deadline)} · ${esc(role.source)}${postingLink(role)}</div></div></div>
   <span class="badge ${st === 'applied' ? 'b-blue' : b[1]}">${st === 'applied' ? 'Applied' : b[0]}</span></div>
-  <div style="margin-top:6px">${reqList(role, false)}</div>
+  ${aiBox(role)}<div style="margin-top:6px">${reqList(role, false)}</div>
   ${S.skipping === role.id ? `<div class="unsure-box"><b>Skip this role?</b> <span class="small mute">Reason is optional and helps adjust future rankings.</span>
     <select data-bind="skipReason"><option value="">No reason</option><option>Not interested in this company</option><option>Wrong location</option><option>Wrong type of role</option><option>Timing doesn't work</option></select>
     <div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="confirmSkip" data-id="${role.id}">Confirm skip</button><button class="btn sm" data-act="cancelSkip">Cancel</button></div></div>`
@@ -207,22 +260,36 @@ function vRecs() {
   if (!S.shortlist) return `<div class="card"><h2>Top roles for you</h2><p class="mute">No shortlist yet. Landed checks new postings overnight and has your shortlist ready by 7:00 am.</p>
     <button class="btn pri" data-act="startOvernight">Simulate the overnight search</button></div>`;
   const list = ranked(), skipped = S.shortlist.map(roleById).filter(r => rs(r.id).status === 'skipped'), removed = S.shortlist.map(roleById).filter(r => rs(r.id).status === 'removed');
-  return `<div class="row sp"><div><h2>Top roles for you</h2><div class="mute small">${esc(D.search.shortlistDate)} · ranked by predicted chance of an interview</div></div>
+  const src = S.ai ? `${S.ai.source === 'web_search' ? `found by AI web search (${S.ai.search_steps} search steps) and ` : ''}ranked by AI (${esc(S.ai.model)}) by relevance and predicted chance of an interview` : 'ranked by predicted chance of an interview (simulated)';
+  return `${S.aiError ? `<div class="notice"><b>The AI call failed, so these are the simulated results.</b> <span class="small">${esc(S.aiError)}</span></div>` : ''}
+  ${S.ai?.summary ? `<div class="ai-box small"><span class="badge b-blue">AI read your resume</span> ${esc(S.ai.summary)}${S.ai.stage ? `<div style="margin-top:4px"><b>Career stage:</b> ${esc(S.ai.stage)}</div>` : ''}</div>` : ''}
+  <div class="row sp"><div><h2>Top roles for you</h2><div class="mute small">${esc(D.search.shortlistDate)} · ${src}</div></div>
   <button class="btn pri" data-act="findNow" ${S.searching ? 'disabled' : ''}>${S.searching ? 'Searching…' : 'Find new roles now'}</button></div><div style="height:12px"></div>
   ${S.searching ? '<div class="card"><div class="spin"></div><p style="text-align:center" class="mute">Searching the career portal and company sites…</p></div>' : ''}
-  ${list.map((r, i) => roleCard(r, i + 1)).join('')}
+  ${list.map((r, i) => roleCard(r, i + 1)).join('') || (S.ai ? '<div class="card mute">The AI found no relevant roles in this batch. See the hidden roles below.</div>' : '')}
+  ${hiddenRoles()}
   ${removed.length ? `<div class="card flat"><b>Removed (${removed.length})</b>${removed.map(r => `<div class="small" style="margin-top:6px">${esc(r.shortTitle)}, ${esc(r.company)}: ${esc(rs(r.id).removedReason)} <button class="btn sm ghost" data-act="restore" data-id="${r.id}">Restore</button></div>`).join('')}</div>` : ''}
   ${skipped.length ? `<div class="card flat"><b>Skipped (${skipped.length})</b>${skipped.map(r => `<div class="small mute" style="margin-top:6px">${esc(r.shortTitle)}, ${esc(r.company)}${rs(r.id).skipReason ? ' · ' + esc(rs(r.id).skipReason) : ''} (similar roles will rank lower)</div>`).join('')}</div>` : ''}`;
 }
+function hiddenRoles() {
+  if (!S.ai) return '';
+  const h = Object.values(S.ai.roles).filter(r => !r.relevant && !S.shortlist.includes(r.role_id));
+  if (!h.length) return '';
+  return `<details class="card flat"><summary style="cursor:pointer"><b>Hidden: not relevant for you (${h.length})</b> <span class="small mute">The AI filtered these out. Disagree? Add one back.</span></summary>
+  ${h.map(a => { const r = roleById(a.role_id); return `<div class="small" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:6px"><b>${esc(r.shortTitle)}, ${esc(r.company)}</b> <span class="mute">${esc(r.employmentType || '')}${r.start ? ', starts ' + esc(r.start) : ''} · ${esc(r.location)}</span><div>${esc(a.relevance_reason)}</div>
+  <button class="btn sm ghost" data-act="markRelevant" data-id="${r.id}">It's relevant to me, show it</button></div>`; }).join('')}</details>`;
+}
 function vRole(role) {
   const o = overall(role), b = BADGE[o], st = rs(role.id).status;
-  return `${back()}<div class="card"><div class="row sp"><div><h2>${esc(role.title)}</h2><div class="mute">${esc(role.company)} · ${esc(role.location)} · Deadline ${esc(role.deadline)} · ${esc(role.source)}</div></div><span class="badge ${b[1]}">${b[0]}</span></div>
-  <h3 style="margin-top:14px">Requirements</h3>${reqList(role, true)}
+  return `${back()}<div class="card"><div class="row sp"><div><h2>${esc(role.title)}</h2><div class="mute">${esc(role.company)} · ${esc(role.employmentType || '')}${role.start ? ', starts ' + esc(role.start) : ''} · ${esc(role.location)} · Deadline ${esc(role.deadline)} · ${esc(role.source)}${postingLink(role)}</div></div><span class="badge ${b[1]}">${b[0]}</span></div>
+  ${aiBox(role)}<h3 style="margin-top:14px">Requirements</h3>${reqList(role, true)}
   <div class="row" style="margin-top:12px">${st === 'applied' ? '' : `<button class="btn pri" data-act="prepare" data-id="${role.id}" ${o === 'not' ? 'disabled' : ''}>Prepare application</button><button class="btn" data-act="skip" data-id="${role.id}">Skip</button>`}
   ${o === 'input' ? '<span class="small mute">Resolve the flagged requirement first. Landed never silently includes or drops unsure roles.</span>' : ''}
   ${o === 'not' ? '<span class="small mute">You can still override a result above if Landed got it wrong.</span>' : ''}</div></div>`;
 }
 function vOvernight() {
+  if (S.view.phase === 'waiting') return `<div class="night"><h2 style="color:#fff">Almost there 🌙</h2><div class="panel"><b>The AI is reading your resume and finding open roles that fit you…</b>
+    <div class="spin"></div><div class="small">With the web search on, this takes about 2 to 4 minutes. With the sample list, 20 to 60 seconds.</div></div></div>`;
   const done = S.view.phase === 'done';
   return `<div class="night"><h2 style="color:#fff">${done ? 'Good morning ☀️' : 'Landed is working while you sleep 🌙'}</h2>
   <div class="panel"><b>Checking <span id="ovn">${done ? D.search.totalRoles : 0}</span> of ${D.search.totalRoles} roles</b><div class="bar" style="margin:8px 0"><div id="ovbar" style="width:${done ? 100 : 0}%"></div></div>
@@ -241,9 +308,21 @@ function runOvernight() {
     if (n >= total) { clearInterval(window._ov); window._ov = null; finishOvernight(); }
   }, 200);
 }
-function finishOvernight() {
-  S.shortlist = D.roles.map(r => r.id);
-  log('shortlist_generated', { roles: ranked().map((r, i) => ({ id: r.id, rank: i + 1, eligibility: overall(r), requirements: r.requirements.map(q => ({ id: q.id, result: evalReq(r, q).s })) })) });
+async function finishOvernight() {
+  if (S.view?.phase === 'waiting') return;
+  const pending = window._match || fetchMatch(); window._match = null;
+  go({ view: { name: 'overnight', phase: 'waiting' } });
+  try {
+    const m = await pending;
+    if (m.mode === 'real' && m.role_source === 'web_search') {
+      m.roles.forEach(r => { r.role_id = 'web_' + r.role_id.replace(/[^a-z0-9_-]/gi, '').toLowerCase(); });
+      S.webRoles = m.roles.map(webRole);
+    } else S.webRoles = [];
+    S.ai = m.mode === 'real' ? { request_id: m.request_id, model: m.model, summary: m.candidate_summary, stage: m.candidate_stage, source: m.role_source, search_request_id: m.search_request_id, search_steps: m.search_steps, roles: Object.fromEntries(m.roles.filter(r => roleById(r.role_id)).map(r => [r.role_id, r])) } : null;
+    S.aiError = null;
+  } catch (err) { S.ai = null; S.aiError = err.message; toast('AI call failed. Showing simulated results.'); }
+  S.shortlist = S.ai ? Object.values(S.ai.roles).filter(r => r.relevant).sort((a, b) => a.rank - b.rank).map(r => r.role_id) : D.roles.map(r => r.id);
+  log('shortlist_generated', { source: S.ai ? 'ai' : 'simulated', not_relevant: S.ai ? Object.values(S.ai.roles).filter(r => !r.relevant).map(r => ({ id: r.role_id, reason: r.relevance_reason })) : [], roles: ranked().map((r, i) => ({ id: r.id, rank: i + 1, eligibility: overall(r), requirements: r.requirements.map(q => ({ id: q.id, result: evalReq(r, q).s })) })) });
   go({ view: { name: 'overnight', phase: 'done' }, tab: 'recs' });
 }
 
@@ -421,23 +500,30 @@ function vSettings() {
 /* ---------- actions ---------- */
 const A = {
   signin() { log('sign_in'); go({ screen: 'onboarding' }); },
-  fillExample() { S.profile = { ...D.sample_profile.prefs, resumeName: 'Priya_Shah_Resume.pdf' }; upd(); },
+  fillExample() { setResume(null); S.profile = { ...D.sample_profile.prefs, resumeName: 'Priya_Shah_Resume.pdf' }; upd(); }, // uses backend/sample_resume.txt
   submitProfile() {
     const p = S.profile; if (!p.resumeName) return toast('Please upload your resume (PDF).');
     if (['targetRoles', 'industries', 'locations', 'gradDate', 'workAuth'].some(k => !p[k].trim())) return toast('Please complete all fields.');
     log('profile_submitted', { ...p }); S.screen = 'parsing'; save(); render();
-    setTimeout(() => {
-      S.facts = D.parsed_resume_facts.map(f => ({ ...f, status: 'pending', text: f.id === 'grad' ? p.gradDate : f.id === 'auth' ? p.workAuth : f.text }));
-      go({ screen: 'verify' });
-    }, 1600);
+    const simulated = () => D.parsed_resume_facts.map(f => ({ ...f, status: 'pending', text: f.id === 'grad' ? p.gradDate : f.id === 'auth' ? p.workAuth : f.text }));
+    const profileForm = { targetRoles: p.targetRoles, industries: p.industries, locations: p.locations, gradDate: p.gradDate, workAuth: p.workAuth };
+    const started = Date.now();
+    postAI('/api/parse-resume', { resume: getResume(), profileForm }).then(m => {
+      if (m.mode === 'real') {
+        S.parse = { request_id: m.request_id, model: m.model }; S.parseError = null;
+        S.facts = m.facts.map(f => ({ ...f, status: 'pending' }));
+        if (m.candidate_name) S.profile.name = m.candidate_name;
+        go({ screen: 'verify' });
+      } else setTimeout(() => { S.parse = null; S.parseError = null; S.facts = simulated(); go({ screen: 'verify' }); }, Math.max(0, 1600 - (Date.now() - started)));
+    }).catch(err => { S.parse = null; S.parseError = err.message; S.facts = simulated(); toast('AI call failed. Showing simulated facts.'); go({ screen: 'verify' }); });
   },
-  confirmFact(d) { const f = S.facts.find(x => x.id === d.id); f.status = 'confirmed'; log('fact_confirmed', { id: d.id }); upd(); },
+  confirmFact(d) { const f = S.facts.find(x => x.id === d.id); f.status = 'confirmed'; log('fact_confirmed', { id: d.id, text: f.text, ai_confidence: f.confidence ?? null }); upd(); },
   editFact(d) { S.editFact = d.id; S.editText = S.facts.find(x => x.id === d.id).text; upd(); },
   saveFact(d) { const f = S.facts.find(x => x.id === d.id); if (!S.editText.trim()) return toast('A fact cannot be empty.'); log('fact_edited', { id: d.id, from: f.text, to: S.editText }); f.text = S.editText.trim(); f.status = 'confirmed'; S.editFact = null; upd(); },
   cancelFact() { S.editFact = null; upd(); },
-  deleteFact(d) { S.facts.find(x => x.id === d.id).status = 'deleted'; log('fact_deleted', { id: d.id }); upd(); },
-  undoFact(d) { S.facts.find(x => x.id === d.id).status = 'pending'; upd(); },
-  confirmAll() { S.facts.forEach(f => { if (f.status === 'pending') f.status = 'confirmed'; }); log('facts_confirmed_all'); upd(); },
+  deleteFact(d) { S.facts.find(x => x.id === d.id).status = 'deleted'; log('fact_deleted', { id: d.id, text: S.facts.find(x => x.id === d.id).text }); upd(); },
+  undoFact(d) { S.facts.find(x => x.id === d.id).status = 'pending'; log('fact_undo', { id: d.id }); upd(); },
+  confirmAll() { S.facts.forEach(f => { if (f.status === 'pending') f.status = 'confirmed'; }); log('facts_confirmed_all', { ids: S.facts.filter(f => f.status === 'confirmed').map(f => f.id) }); upd(); },
   finishVerify() { log('profile_verified', { facts: S.facts.filter(f => f.status === 'confirmed').length }); go({ screen: 'app', tab: 'journal', view: null, journalPrompt: true }); },
 
   tab(d) { go({ tab: d.id, view: null }); },
@@ -463,6 +549,7 @@ const A = {
   /* search */
   startOvernight() {
     if (S.paused) return toast('Your search is paused.'); if (S.shortlist) return A.home();
+    window._match = fetchMatch(); window._match.catch(() => {}); // start the AI call while the animation plays
     go({ tab: 'recs', view: { name: 'overnight', phase: 'run' } });
   },
   skipOvernight() { if (window._ov) { clearInterval(window._ov); window._ov = null; } finishOvernight(); },
@@ -480,15 +567,16 @@ const A = {
   label(d) {
     const role = roleById(d.role), req = role.requirements.find(q => q.id === d.req);
     rs(d.role).labels[d.req] = { v: d.v, kind: d.kind };
-    log(d.kind === 'override' ? 'eligibility_override' : 'eligibility_label', { role: d.role, req: d.req, answer: d.v, landed_said: autoEval(req).s });
-    if (d.v === 'not' && autoEval(req).s !== 'not') {
+    log(d.kind === 'override' ? 'eligibility_override' : 'eligibility_label', { role: d.role, req: d.req, req_text: req.text, answer: d.v, landed_said: landedEval(role, req).s, landed_source: aiEval(role, req) ? 'ai' : 'rules' });
+    if (d.v === 'not' && landedEval(role, req).s !== 'not') {
       Object.assign(rs(d.role), { status: 'removed', removedReason: `You said you don't qualify for "${req.text}", so Landed removed it.` });
       toast('Role removed from your shortlist.'); return go({ view: null, tab: 'recs' });
     }
     toast(d.v === 'meets' ? 'Updated. Eligibility recalculated.' : 'Saved.'); upd();
   },
   clearLabel(d) { delete rs(d.role).labels[d.req]; log('eligibility_reset', { role: d.role, req: d.req }); upd(); },
-  restore(d) { Object.assign(rs(d.id), { status: 'new', labels: {} }); upd(); },
+  markRelevant(d) { const a = S.ai.roles[d.id]; S.shortlist.push(d.id); log('relevance_override', { role: d.id, ai_said_relevant: false, ai_reason: a.relevance_reason, user_said: 'relevant' }); toast('Added to your shortlist.'); upd(); },
+  restore(d) { Object.assign(rs(d.id), { status: 'new', labels: {} }); log('role_restored', { role: d.id }); upd(); },
   skip(d) { S.skipping = d.id; S.skipReason = ''; go({ view: null, tab: 'recs' }); },
   cancelSkip() { S.skipping = null; upd(); },
   confirmSkip(d) {
@@ -583,7 +671,7 @@ const A = {
   download() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S.log, null, 2)], { type: 'application/json' })); a.download = 'landed_activity_log.json'; a.click();
   },
-  reset() { if (confirm('Reset the demo and start over?')) { localStorage.removeItem(KEY); S = fresh(); render(); window.scrollTo(0, 0); } }
+  reset() { if (confirm('Reset the demo and start over?')) { localStorage.removeItem(KEY); setResume(null); S = fresh(); render(); window.scrollTo(0, 0); } }
 };
 
 /* ---------- events ---------- */
@@ -594,11 +682,13 @@ document.addEventListener('change', e => {
   const t = e.target, p = t.dataset?.bind;
   if (p) { setPath(p, t.value); save(); if (t.tagName === 'SELECT' || t.type === 'date') render(); }
   if (t.dataset?.change === 'mark') A.mark({ id: t.dataset.id, v: t.value });
-  if (t.id === 'resume' && t.files[0]) { if (!/\.pdf$/i.test(t.files[0].name)) return toast('Please choose a PDF file.'); S.profile.resumeName = t.files[0].name; upd(); }
+  if (t.id === 'resume' && t.files[0]) { if (!/\.pdf$/i.test(t.files[0].name)) return toast('Please choose a PDF file.'); const f = t.files[0]; S.profile.resumeName = f.name; upd();
+    const rd = new FileReader(); rd.onload = () => setResume({ kind: 'pdf', name: f.name, data: String(rd.result).split(',')[1] }); rd.readAsDataURL(f); }
 });
 
 fetch('simulated_responses.json').then(r => r.json()).then(j => {
   D = j; try { S = { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { S = fresh(); }
   if (S.screen === 'parsing') S.screen = 'onboarding';
+  if (S.view?.phase === 'waiting') S.view.phase = 'run'; // page was reloaded mid AI call: run the search again
   render();
 }).catch(err => { document.body.innerHTML = '<pre style="padding:20px">Could not load simulated_responses.json. Serve this folder over HTTP (see README), do not open index.html directly.\n' + err + '</pre>'; });

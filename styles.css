@@ -75,3 +75,5 @@ pre{white-space:pre-wrap;font-size:12px}
 .info:hover,.info:focus{border-color:var(--navy);color:var(--navy);outline:none}
 .info::after{content:attr(data-tip);display:none;position:absolute;z-index:20;top:22px;left:50%;transform:translateX(-50%);width:240px;padding:8px 10px;border-radius:8px;background:var(--ink);color:#fff;font-family:inherit;font-weight:400;font-size:12px;line-height:1.4;font-style:normal;text-align:left;white-space:normal}
 .info:hover::after,.info:focus::after{display:block}
+.ai-box{background:#eef3ff;border:1px solid #b9c8f5;border-radius:8px;padding:8px 10px;margin:8px 0}
+.ai-box ul{margin:2px 0 0 18px;padding:0}

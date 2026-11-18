@@ -1,0 +1,16 @@
+{
+  "name": "landed-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Landed prototype with a small local backend that connects job matching to a real AI model.",
+  "scripts": {
+    "start": "node backend/server.js",
+    "log": "node scripts/show-log.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
+    "dotenv": "^18.0.10"
+  }
+}

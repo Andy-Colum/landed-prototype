@@ -1,0 +1,24 @@
+{
+  "_help": "One section per AI step. Edit this file to switch models or go back to simulated AI. Changes apply to the next request; click Reset demo in the prototype to re-run the search.",
+  "resume_parsing": {
+    "mode": "real",
+    "_what": "Reads the resume into facts on the 'Verify your profile' screen.",
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "max_tokens": 16000,
+    "effort": "low"
+  },
+  "job_matching": {
+    "_what": "Finds open roles (web search agent or sample list), hides ones not relevant to the candidate's career stage, ranks the rest by interview chance, shows matches/gaps per requirement.",
+    "mode": "real",
+    "_mode_options": "real = call the AI model below. simulated = use the canned answers in simulated_responses.json (no API key needed, no cost).",
+    "role_source": "web_search",
+    "_role_source_options": "web_search = the AI searches the web for real open roles (slower: 1 to 2.5 minutes and about 30 cents to 1 dollar per run in testing). sample_list = rank the fixed sample roles in simulated_responses.json (faster, cheaper, same roles every time).",
+    "max_searches": 10,
+    "max_page_reads": 8,
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "max_tokens": 16000,
+    "effort": "medium"
+  }
+}

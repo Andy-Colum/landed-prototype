@@ -1,0 +1,10 @@
+# Secrets: never share
+.env
+
+# Local test logs (may contain resume content)
+logs/
+
+# Installed packages (recreated with npm install)
+node_modules/
+
+.DS_Store
